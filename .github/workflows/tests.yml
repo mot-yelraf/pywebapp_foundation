@@ -1,0 +1,29 @@
+name: Tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ['3.10', '3.14']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q -W error --cov --cov-report=term-missing
+      - run: python -m ruff check .
+      - run: python -m compileall -q pwaf_foundation app tests
+      - run: python scripts/smoke_verify.py
+      - run: python -m playwright install --with-deps chromium
+      - run: python scripts/playwright_verify.py
+      - run: python scripts/verify_clone.py
+      - run: python scripts/verify_lan.py
+      - run: python scripts/verify_install.py
+      - run: python -m build

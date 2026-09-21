@@ -1,0 +1,6 @@
+fastapi>=0.135,<0.142
+uvicorn>=0.34,<0.42
+jinja2>=3.1.6,<4
+pydantic>=2.12,<3
+# Starlette 1.6 TestClient still imports aliases deprecated in AnyIO 4.15.
+anyio>=4.10,<4.15

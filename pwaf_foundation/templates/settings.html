@@ -1,0 +1,22 @@
+{% from 'components.html' import setting_field %}
+<dialog id="settings-dialog" aria-labelledby="settings-title">
+  <div class="dialog-header"><div><p class="eyebrow">PREFERENCES</p><h2 id="settings-title">System settings</h2></div><button id="close-settings" class="icon-button" aria-label="Close settings">×</button></div>
+  <div class="settings-layout">
+    <div role="tablist" aria-label="Settings sections" aria-orientation="vertical">
+      {% for pane in panes %}<button role="tab" id="tab-{{ pane.key }}" aria-controls="pane-{{ pane.key }}" aria-selected="{{ 'true' if loop.first else 'false' }}" tabindex="{{ '0' if loop.first else '-1' }}">{{ pane.label }}</button>{% endfor %}
+    </div>
+    <div class="settings-content">
+      <p id="settings-load-status" role="status" aria-live="polite"></p>
+      {% for pane in panes %}
+      <section role="tabpanel" id="pane-{{ pane.key }}" aria-labelledby="tab-{{ pane.key }}" {% if not loop.first %}hidden{% endif %}>
+        <h3>{{ pane.label }}</h3><p class="muted">Changes in this section are saved independently.</p>
+        <form data-settings-pane="{{ pane.key }}">
+          {% for name in pane.fields %}{{ setting_field(name, setting_fields[name]) }}{% endfor %}
+          <div class="form-actions"><button type="submit" class="primary">Save {{ pane.label | lower }}</button></div>
+          <p class="form-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+</dialog>

@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-heading"><p class="eyebrow">FOUNDATION / OVERVIEW</p><h1>A home for your Python tools.</h1><p class="lead">Your Python web foundation is running. Add your application, keep your workflow.</p></section>
+<div class="overview-grid">
+  <section class="card feature-card"><span class="pill">READY TO BUILD</span><h2>Start with what works.</h2><p>Keep your business logic in Python. Bring it to the browser with shared settings, persistent data, and a UI you can make your own.</p>{% for item in ui.navigation %}<a class="button primary" href="{{ item.path }}">Open {{ item.label | lower }} <span aria-hidden="true">↗</span></a>{% endfor %}</section>
+  <section class="card"><p class="eyebrow">YOUR WORKSPACE</p><h2>Local by default</h2><p>Work stays on the machine running this application.</p><dl class="detail-list"><div><dt>Interface</dt><dd>Browser</dd></div><div><dt>Storage</dt><dd>SQLite + JSON</dd></div><div><dt>Access</dt><dd>Local machine</dd></div></dl></section>
+</div>
+<section class="card resources"><h2>Make it your own</h2><p>Explore the API contract or check the services behind your application.</p><a href="/docs">API documentation ↗</a><a href="/healthz">Service readiness ↗</a></section>
+{% endblock %}

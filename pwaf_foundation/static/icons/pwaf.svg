@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="PWAF: Python Web App Foundation">
+  <defs>
+    <linearGradient id="tile" x2="1" y2="1"><stop stop-color="#172b46"/><stop offset="1" stop-color="#091323"/></linearGradient>
+    <linearGradient id="letter" x2="1" y2="1"><stop stop-color="#b7ffea"/><stop offset="1" stop-color="#45d8ba"/></linearGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="108" fill="url(#tile)"/>
+  <g id="mark">
+    <path d="M148 322V126h128c62 0 98 32 98 85s-36 85-98 85h-64v26zm64-88h61c25 0 37-8 37-23s-12-23-37-23h-61z" fill="url(#letter)" fill-rule="evenodd"/>
+    <rect x="116" y="348" width="80" height="44" rx="12" fill="#5c91ff"/>
+    <rect x="216" y="348" width="80" height="44" rx="12" fill="#7ba8ff"/>
+    <rect x="316" y="348" width="80" height="44" rx="12" fill="#a2c2ff"/>
+  </g>
+</svg>

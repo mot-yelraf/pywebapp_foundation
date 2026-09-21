@@ -1,0 +1,30 @@
+{% macro button(label, type='button', class='secondary', id=none) -%}
+<button type="{{ type }}" class="{{ class }}"{% if id %} id="{{ id }}"{% endif %}>{{ label }}</button>
+{%- endmacro %}
+
+{% macro setting_field(name, spec) -%}
+<label for="setting-{{ name }}">{{ spec.title or name }}</label>
+{% if spec.enum %}
+<select id="setting-{{ name }}" name="{{ name }}">
+  {% for value in spec.enum %}<option value="{{ value }}">{{ value | capitalize }}</option>{% endfor %}
+</select>
+{% else %}
+<input id="setting-{{ name }}" name="{{ name }}" type="{{ 'number' if spec.type in ['integer','number'] else 'text' }}"
+  {% if spec.minimum is defined %}min="{{ spec.minimum }}"{% endif %}
+  {% if spec.maximum is defined %}max="{{ spec.maximum }}"{% endif %}
+  {% if spec.minLength is defined %}minlength="{{ spec.minLength }}"{% endif %}
+  {% if spec.maxLength is defined %}maxlength="{{ spec.maxLength }}"{% endif %}
+  {% if spec.type == 'number' %}step="any"{% endif %} required>
+{% endif %}
+{%- endmacro %}
+
+{% macro metric(label, value, id) -%}
+<div class="metric"><span>{{ label }}</span><strong id="{{ id }}">{{ value if value is not none else '—' }}</strong></div>
+{%- endmacro %}
+
+{% macro dialog(id, title) -%}
+<dialog id="{{ id }}" aria-labelledby="{{ id }}-title">
+  <div class="dialog-header"><h2 id="{{ id }}-title">{{ title }}</h2><button type="button" class="icon-button" data-close-dialog="{{ id }}" aria-label="Close {{ title }}">×</button></div>
+  <div class="dialog-body">{{ caller() }}</div>
+</dialog>
+{%- endmacro %}

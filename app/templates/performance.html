@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% from 'components.html' import metric, dialog %}
+{% block title %}Performance · {{ settings.app_name }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('app_static', path='performance.css') }}">{% endblock %}
+{% block content %}
+<section class="page-heading"><p class="eyebrow">WORKSPACE / PERFORMANCE</p><h1>Small workload. Clear results.</h1><p class="lead">Run a repeatable SHA-256 workload and measure how long it takes on this machine.</p></section>
+<div class="metrics">{{ metric('Latest duration', none, 'latest-duration') }}{{ metric('Latest iterations', none, 'latest-iterations') }}{{ metric('Saved results', 0, 'saved-count') }}</div>
+<div class="run-grid">
+  <section class="card"><div class="section-top"><h2>Run a benchmark</h2><span class="pill">SHA-256</span></div><p>A fixed seed, hashed repeatedly. More iterations mean more work.</p>
+    <button type="button" class="text-button" data-open-dialog="benchmark-details">About this benchmark</button>
+    <form id="run-form"><label for="iterations">Iterations</label><input id="iterations" name="iterations" type="number" min="1" max="5000000" step="1" value="{{ settings.default_iterations }}" required aria-describedby="iterations-help"><p id="iterations-help" class="hint">1 to 5,000,000 iterations · 30-second time limit</p><div class="form-actions"><button class="primary" id="run-button" type="submit">Run benchmark <span aria-hidden="true">↗</span></button><button class="secondary" id="cancel-job" type="button" disabled>Cancel</button></div></form>
+  </section>
+  <section class="card run-status"><p class="eyebrow">CURRENT RUN</p><h2 id="job-heading">Ready when you are.</h2><p id="job-status" role="status" aria-live="polite">Start a benchmark to see its result here.</p><progress id="job-progress" max="1" value="0" aria-label="Benchmark progress"></progress><p class="hint">Run status is temporary. Run status resets on restart. Successful results are saved below.</p><pre id="job-result" hidden></pre></section>
+</div>
+<section class="card history"><div class="section-top"><div><h2>Result history</h2><p class="muted">Successful measurements, saved on this machine.</p></div><button class="secondary" id="refresh-history">Refresh</button></div><p id="history-status" role="status" class="form-status"></p>
+<div class="table-scroll"><table><caption class="visually-hidden">Saved benchmark measurements</caption><thead><tr><th scope="col">Recorded</th><th scope="col">Iterations</th><th scope="col">Duration</th><th scope="col">Checksum</th></tr></thead><tbody id="history-rows"></tbody></table></div>
+<div class="pagination"><button class="secondary" id="previous-page" disabled>Previous</button><span id="page-label">Page 1</span><button class="secondary" id="next-page" disabled>Next</button></div></section>
+{% endblock %}
+{% block scripts %}
+{% call dialog('benchmark-details', 'About this benchmark') %}
+<p>The measurement covers hashing a fixed seed repeatedly. Starting the tool and saving its result are excluded from the measured time.</p>
+<p>The checksum stays the same for the same iteration count. Duration varies with the machine and its current workload.</p>
+{% endcall %}
+<script defer src="{{ url_for('app_static', path='performance.js') }}"></script>{% endblock %}

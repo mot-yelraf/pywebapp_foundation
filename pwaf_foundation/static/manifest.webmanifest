@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "Python Web App Foundation",
+  "short_name": "PWAF",
+  "description": "A home for your Python tools.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#172b46",
+  "background_color": "#091323",
+  "icons": [
+    {"src": "icons/pwaf-android-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icons/pwaf-android-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icons/pwaf-android-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
