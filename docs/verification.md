@@ -1,8 +1,17 @@
 # Verification record
 
-Current version: `v0.26.264.11` (2026-09-21).
+Current version: `v0.26.264.12` (2026-09-21).
 The results below record local verification. Remote CI results are available in
 [GitHub Actions](https://github.com/mot-yelraf/pywebapp_foundation/actions).
+
+## GitHub Actions runtime update
+
+The initial run used checkout v4 and setup-python v5, which targeted Node 20.
+GitHub forced those actions onto Node 24 and reported runtime deprecations;
+setup-python also emitted `punycode` and `url.parse()` warnings. Version
+`v0.26.264.12` pins checkout v7.0.1 and setup-python v7.0.0 to their release
+commits. Both declare Node 24 in their action metadata. Warnings are not suppressed;
+remote runs verify the upgraded action and cache paths.
 
 ## Windows clone-verification correction
 
