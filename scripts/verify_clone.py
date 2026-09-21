@@ -61,7 +61,8 @@ from fastapi.testclient import TestClient
 import pwaf_foundation
 from app.app import create_example_app
 from pwaf_foundation.config import RuntimeConfig
-assert Path(pwaf_foundation.__file__).resolve().is_relative_to(Path.cwd())
+from scripts.verify_clone import assert_clone_import
+assert_clone_import(pwaf_foundation.__file__, Path.cwd())
 application = create_example_app(RuntimeConfig(data_dir=Path('data')))
 with TestClient(application, base_url='http://127.0.0.1:8191') as client:
     page = client.get('/notes')
@@ -84,6 +85,15 @@ with TestClient(application, base_url='http://127.0.0.1:8191') as client:
     output = subprocess.check_output([sys.executable,'-m','app.cli','hello'],text=True).strip()
     assert output == record['result']['text']
 """
+
+
+def assert_clone_import(module_file: str, root: Path) -> None:
+    """Compare canonical paths so Windows short names and aliases remain equivalent."""
+    imported = Path(module_file).resolve()
+    clone_root = root.resolve()
+    assert imported.is_relative_to(clone_root), (
+        f"Foundation imported from {imported}, outside clone {clone_root}"
+    )
 
 
 def hashes(root: Path) -> dict[str, str]:
