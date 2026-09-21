@@ -1,8 +1,19 @@
 # Verification record
 
-Current version: `v0.26.264.10` (2026-09-21).
+Current version: `v0.26.264.11` (2026-09-21).
 The results below record local verification. Remote CI results are available in
 [GitHub Actions](https://github.com/mot-yelraf/pywebapp_foundation/actions).
+
+## Windows clone-verification correction
+
+The initial GitHub run passed both Linux and macOS jobs. Both Windows jobs passed
+unit/coverage, lint, HTTP smoke, and browser checks, then failed the clone-origin
+assertion in `scripts/verify_clone.py`. The check resolved the imported module path
+but not the clone root, allowing filesystem aliases to compare as different paths.
+Version `v0.26.264.11` resolves both paths and retains rejection of imports outside
+the clone, with diagnostic paths in its assertion message. Regression tests cover
+an external import and an aliased clone directory (a symlink on POSIX, junction on
+Windows). Remote Windows validation of the correction is tracked in GitHub Actions.
 
 ## Initial publication preflight
 
