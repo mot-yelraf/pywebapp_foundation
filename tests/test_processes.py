@@ -23,7 +23,9 @@ def test_streams_before_exit_and_preserves_unicode_without_capture():
         script = "import os,time; print(os.environ['PWAF_TEST_VALUE'],flush=True); time.sleep(.2)"
         task = asyncio.create_task(run_process(
             [sys.executable, '-c', script], on_line=line,
-            env={'PWAF_TEST_VALUE': 'é'}, capture=False, tail_chunks=1,
+            # The fixture must emit the runner's documented UTF-8 wire format on Windows too.
+            env={'PWAF_TEST_VALUE': 'é', 'PYTHONIOENCODING': 'utf-8'},
+            capture=False, tail_chunks=1,
         ))
         await asyncio.wait_for(seen.wait(), 5)
         assert not task.done()

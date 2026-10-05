@@ -35,7 +35,10 @@ Local macOS ARM64 / Python 3.13.9 verification:
 
 Native confirmation accept/decline and Windows listener options are tested with
 GUI/platform doubles. Actual native dialog clicks, Windows/Linux desktop operation,
-physical Raspberry Pi, and current remote CI were not verified in this change set.
+and physical Raspberry Pi were not verified locally. The first PR CI run exposed
+a Windows fixture encoding mismatch: the UTF-8 runner received Windows-encoded
+output. The fixture now explicitly sets `PYTHONIOENCODING=utf-8`; runtime behavior
+is unchanged. Corrected remote results are available on PR #2.
 No proxy/network-tool integrations were added. The repository remains private;
 branch publication and PR merge do not change its visibility. Package license
 metadata and notices are retained. The results above describe local pre-PR checks;
