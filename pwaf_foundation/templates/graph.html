@@ -5,8 +5,8 @@
       <aside class="graph-controls" aria-label="Graph controls">
         <h3>Time range</h3>
         <div class="graph-ranges" role="group" aria-label="Time range">
-          {% for hours, label in [(1,'1hr'),(6,'6hr'),(12,'12hr'),(24,'24hr'),(72,'3 days'),(168,'7 days'),(336,'14 days'),(696,'29 days')] %}
-          <button type="button" class="secondary" data-graph-hours="{{ hours }}" aria-pressed="{{ 'true' if hours == 24 else 'false' }}">{{ label }}</button>
+          {% for hours, label in ui.graph_ranges %}
+          <button type="button" class="secondary" data-graph-hours="{{ hours }}" aria-pressed="{{ 'true' if hours == ui.graph_default_hours else 'false' }}">{{ label }}</button>
           {% endfor %}
         </div>
         <h3>Metrics <small id="graph-count">0 of 4</small></h3>
@@ -14,7 +14,7 @@
         <p id="graph-status" role="status">No metrics available.</p>
       </aside>
       <section class="graph-stage" aria-label="Time-series plots">
-        <header><h3 id="graph-range-title">Last 24 hours</h3><p>Up to four metrics · separate scales</p></header>
+        <header><h3 id="graph-range-title">Selected time range</h3><p>Up to four metrics · separate scales</p></header>
         <div id="graph-plots"><p class="graph-empty">No graph data available yet.</p></div>
       </section>
     </div>

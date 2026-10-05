@@ -8,6 +8,7 @@ Persistent data and previous releases are never deleted by this installer.
 import argparse
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -124,13 +125,51 @@ def atomic_write(path: Path, content: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def install(source: Path, destination: Path, *, desktop: bool = True) -> Path:
+def application_identity(source: Path) -> str:
+    """Read the stable app-owned installation identifier without importing code."""
+    try:
+        value = json.loads((source / "app/identity.json").read_text(encoding="utf-8"))["id"]
+        if not isinstance(value, str) or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,127}", value):
+            raise ValueError
+        return value
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise ValueError("Source requires app/identity.json with a valid stable id") from exc
+
+
+def validate_identity(marker: Path, identity: str, adopt_legacy: bool) -> None:
+    """Reject other apps and malformed markers; require explicit legacy adoption."""
+    if not marker.exists():
+        return
+    content = marker.read_text(encoding="utf-8")
+    if not content.strip():
+        if not adopt_legacy:
+            raise ValueError(
+                "Legacy installation has no application identity. Verify its origin, then use "
+                "--adopt-legacy-install with --destination to claim it for this application."
+            )
+        return
+    try:
+        document = json.loads(content)
+        if document["format"] != 1 or not isinstance(document["application_id"], str):
+            raise ValueError
+    except (ValueError, KeyError, TypeError) as exc:
+        raise ValueError(
+            "Invalid installation identity marker; preserve it for inspection"
+        ) from exc
+    if document["application_id"] != identity:
+        raise ValueError("Destination belongs to a different application; choose another folder")
+
+
+def install(
+    source: Path, destination: Path, *, desktop: bool = True, adopt_legacy: bool = False
+) -> Path:
     """Build a verified release and switch activation while preserving installed data."""
     source, destination = source.resolve(), destination.expanduser().resolve()
     if source == destination or source in destination.parents:
         raise ValueError("Installation destination must be outside the source checkout")
     if not (source / "pyproject.toml").is_file():
         raise ValueError("Source must contain pyproject.toml")
+    identity = application_identity(source)
     marker = destination / ".pwaf-install"
     if destination.exists() and any(destination.iterdir()) and not marker.is_file():
         raise ValueError("Choose an empty destination or an existing PWAF installation")
@@ -144,7 +183,8 @@ def install(source: Path, destination: Path, *, desktop: bool = True) -> Path:
         ) from exc
     os.close(descriptor)
     try:
-        marker.touch(exist_ok=True)
+        validate_identity(marker, identity, adopt_legacy)
+        atomic_write(marker, json.dumps({"format": 1, "application_id": identity}) + "\n")
         release = destination / "releases" / uuid.uuid4().hex
         release.mkdir(parents=True)
         environment = release / ".venv"
@@ -186,6 +226,8 @@ def main() -> None:
     parser.add_argument(
         "--destination", type=Path, help="Installation folder; opens a native picker if omitted"
     )
+    parser.add_argument("--adopt-legacy-install", action="store_true",
+                        help="Claim an unidentified legacy installation after verifying its origin")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--desktop", dest="desktop", action="store_true", help="Default")
     mode.add_argument("--browser-only", dest="desktop", action="store_false",
@@ -193,13 +235,16 @@ def main() -> None:
     parser.set_defaults(desktop=True)
     args = parser.parse_args()
     try:
+        if args.adopt_legacy_install and args.destination is None:
+            raise ValueError("Legacy adoption requires an explicit --destination")
         destination = args.destination if args.destination is not None else select_destination()
         if destination is None:
             print("Installation cancelled; no installation changes made.")
             return
         destination = destination.expanduser().resolve()
         release = install(
-            Path(__file__).resolve().parents[1], destination, desktop=args.desktop
+            Path(__file__).resolve().parents[1], destination, desktop=args.desktop,
+            adopt_legacy=args.adopt_legacy_install
         )
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         raise SystemExit(

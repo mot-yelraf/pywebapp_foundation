@@ -15,6 +15,9 @@ from pwaf_foundation.desktop import launch_desktop
 
 
 class Listener:
+    def setsockopt(self, *args):
+        pass
+
     """No network access is required for deterministic lifecycle tests."""
 
     def __enter__(self):
@@ -330,3 +333,78 @@ def test_other_platforms_do_not_import_cocoa(monkeypatch, platform):
     monkeypatch.setattr(desktop.sys, 'platform', platform)
     monkeypatch.setattr(builtins, '__import__', guarded_import)
     desktop.set_macos_app_icon()
+
+
+@pytest.mark.parametrize('active,accept', [(True, True), (True, False), (False, True)])
+def test_quit_confirmation_waits_for_cleanup(active, accept):
+    import threading
+
+    from pwaf_foundation.desktop import install_quit_handler
+
+    callbacks, prompts = [], []
+    finished = threading.Event()
+    destroyed = threading.Event()
+    server = SimpleNamespace(should_exit=False)
+
+    class Event:
+        def __iadd__(self, callback):
+            callbacks.append(callback)
+            return self
+
+    def serve():
+        while not server.should_exit:
+            time.sleep(0.001)
+        finished.set()
+
+    worker = threading.Thread(target=serve)
+    worker.start()
+
+    def confirm(*args):
+        prompts.append(args)
+        return accept
+
+    def destroy():
+        assert finished.is_set()
+        assert callbacks[0]() is True
+        destroyed.set()
+
+    window = SimpleNamespace(
+        events=SimpleNamespace(closing=Event()), create_confirmation_dialog=confirm,
+        destroy=destroy,
+    )
+    install_quit_handler(window, server, worker, lambda: active, 'NetProf', 'Stop and quit?')
+    try:
+        assert callbacks[0]() is False
+        if not active or accept:
+            assert destroyed.wait(2)
+            assert server.should_exit
+        else:
+            time.sleep(0.05)
+            assert not destroyed.is_set()
+            assert not server.should_exit
+        assert len(prompts) == int(active)
+    finally:
+        server.should_exit = True
+        worker.join(2)
+
+
+@pytest.mark.parametrize('platform', ['darwin', 'win32'])
+def test_desktop_identity_and_socket_ownership(monkeypatch, tmp_path, platform):
+    from pwaf_foundation import desktop
+
+    options, titles, hooks = [], [], []
+    listener = Listener()
+    listener.setsockopt = lambda *args: options.append(args)
+    monkeypatch.setattr(desktop.sys, 'platform', platform)
+    monkeypatch.setattr(desktop.socket, 'SO_EXCLUSIVEADDRUSE', 999, raising=False)
+    monkeypatch.setattr(desktop.socket, 'socket', lambda *a: listener)
+    monkeypatch.setattr(desktop, '_ready', lambda origin: True)
+    monkeypatch.setattr(desktop, 'set_macos_app_icon', lambda: None)
+    monkeypatch.setattr(desktop, 'install_quit_handler', lambda *args: hooks.append(args))
+    gui = SimpleNamespace(create_window=lambda title, *a, **k: titles.append(title),
+                          start=lambda: None)
+    config = RuntimeConfig(data_dir=tmp_path)
+    launch_desktop(create_app(config), config, title='Custom Tool', confirm_exit=lambda: True,
+                   webview_module=gui, server_factory=Server)
+    assert titles == ['Custom Tool'] and len(hooks) == 1
+    assert options[0][1] == (999 if platform == 'win32' else desktop.socket.SO_REUSEADDR)

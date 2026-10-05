@@ -192,3 +192,48 @@ def test_installed_launcher_mode(tmp_path, monkeypatch, stored, args, module):
     monkeypatch.setattr(launcher.subprocess, 'call', lambda command, env, cwd: check(command, env))
     with pytest.raises(Launched):
         launcher.main()
+
+
+def test_application_identity_guards_and_legacy_adoption(tmp_path, monkeypatch):
+    from scripts.install_runtime import application_identity
+
+    monkeypatch.setattr("scripts.install_runtime.venv.EnvBuilder.create",
+                        lambda self, path: path.mkdir())
+    monkeypatch.setattr("scripts.install_runtime.subprocess.run", lambda *a, **k: None)
+    root = tmp_path / "installed"
+    install(SOURCE, root)
+    marker = root / ".pwaf-install"
+    assert json.loads(marker.read_text())["application_id"] == application_identity(SOURCE)
+    original = (root / "active.json").read_bytes()
+    for content in ('{"format":1,"application_id":"different-app"}', '{broken', '{}', '[]'):
+        marker.write_text(content)
+        with pytest.raises(ValueError):
+            install(SOURCE, root, adopt_legacy=True)
+        assert marker.read_text() == content
+        assert (root / "active.json").read_bytes() == original
+    marker.write_text('')
+    with pytest.raises(ValueError, match='adopt-legacy'):
+        install(SOURCE, root)
+    assert marker.read_text() == ''
+    install(SOURCE, root, adopt_legacy=True)
+    assert json.loads(marker.read_text())['application_id'] == application_identity(SOURCE)
+
+
+@pytest.mark.parametrize('content', ['{}', '[]', '{', '{"id":42}', '{"id":"../app"}'])
+def test_source_identity_validation(tmp_path, content):
+    from scripts.install_runtime import application_identity
+
+    with pytest.raises(ValueError, match='identity.json'):
+        application_identity(tmp_path)
+    (tmp_path / 'app').mkdir()
+    (tmp_path / 'app/identity.json').write_text(content)
+    with pytest.raises(ValueError, match='identity.json'):
+        application_identity(tmp_path)
+
+
+def test_legacy_cli_requires_destination(monkeypatch):
+    from scripts import install_runtime
+
+    monkeypatch.setattr(install_runtime.sys, 'argv', ['install', '--adopt-legacy-install'])
+    with pytest.raises(SystemExit, match='explicit --destination'):
+        install_runtime.main()

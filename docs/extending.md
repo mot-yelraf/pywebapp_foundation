@@ -208,3 +208,63 @@ namespaces, and static URLs are unchanged. Update derived-app imports when upgra
 For time-series displays, optionally enable the shared [Graphum window](graphs.md)
 with `UIConfig(graph_enabled=True)`. Your application defines its available metrics
 and supplies their data through `PWAF.graph.setSeries(...)`.
+
+## Settings and alternative layouts
+
+`UIConfig.general_settings_fields` defaults to `("app_name", "theme")`. To put an
+application field in General, include it explicitly; existing unknown-field and
+cross-pane ownership validation still applies:
+
+```python
+from pydantic import Field
+from app.app import create_app
+from pwaf_foundation.settings import FoundationSettings
+from pwaf_foundation.ui import UIConfig
+
+class Settings(FoundationSettings):
+    repetitions: int = Field(default=3, ge=1, le=100)
+
+application = create_app(settings_schema=Settings, ui=UIConfig(
+    general_settings_fields=("app_name", "theme", "repetitions"),
+))
+```
+
+Shared browser code emits `settings-loaded` after a successful dialog load and
+`settings-saved` after a successful save. Both events carry recognized settings
+in `event.detail`. Listen to the load event to populate application-owned dynamic
+selectors; failed loads and saves emit neither success event. Never put secrets in
+settings or these events. For example:
+
+```javascript
+document.addEventListener('settings-loaded', event => {
+  document.querySelector('#saved-repetitions').textContent = event.detail.repetitions;
+});
+```
+
+Application layouts may omit the menu/navigation or the entire Settings feature.
+When including Settings, keep the complete shared dialog and control IDs; partial
+copies are not a supported component contract. Navigation initializes independently.
+
+## Native title and close policy
+
+Desktop apps can pass `title`, `confirm_exit`, and `quit_message` without editing
+shared code. With no predicate, the previous immediate-close behavior remains.
+The predicate runs in a background thread and returns whether a native prompt is
+needed; it must be quick and thread-safe. False skips the prompt, but still waits
+for cleanup before closing. A declined prompt leaves the app running.
+
+```python
+from app.app import create_example_app
+from pwaf_foundation.config import RuntimeConfig
+from pwaf_foundation.desktop import launch_desktop
+
+config = RuntimeConfig.from_env()
+launch_desktop(create_example_app(config), config, title="My Tool",
+               confirm_exit=lambda: True, quit_message="Stop work and quit?")
+```
+
+Accepted close requests stop the owned server and wait up to 35 seconds for
+lifespan cleanup; repeated requests do not create duplicate prompts. A cleanup
+failure is logged and the window stays open. This hook does not make in-memory
+jobs durable or guarantee cleanup after a forced process kill. POSIX listeners
+allow immediate address reuse; Windows listeners retain exclusive ownership.

@@ -293,3 +293,43 @@ def test_graphum_is_an_explicit_application_option(tmp_path, enabled):
             assert (marker in page) is enabled
         assert 'id="open-settings"' in page
         assert browser.get('/static/foundation/icons/dashboard-graph.svg').status_code == 200
+
+
+def test_configurable_general_fields_and_graph_ranges(tmp_path):
+    from pwaf_foundation.settings import FoundationSettings
+    from pwaf_foundation.ui import SettingsPane, UIConfig
+
+    class Settings(FoundationSettings):
+        count: int = 0
+
+    config = RuntimeConfig(data_dir=tmp_path)
+    ui = UIConfig(general_settings_fields=('count', 'app_name', 'theme'),
+                  graph_enabled=True, graph_ranges=((1/60, '1min'), (1, '1hr')),
+                  graph_default_hours=1/60)
+    application = create_app(config, settings_schema=Settings, ui=ui)
+    with TestClient(application, base_url='http://127.0.0.1:8191') as client:
+        page = client.get('/').text
+        assert 'data-graph-hours="0.016666666666666666" aria-pressed="true"' in page
+        token = client.get('/api/csrf').json()['csrf_token']
+        response = client.patch('/api/settings/panes/general', json={'count': 3},
+            headers={'Origin':'http://127.0.0.1:8191','X-CSRF-Token': token})
+        assert response.status_code == 200 and response.json()['count'] == 3
+    with pytest.raises(ValueError, match='disjoint'):
+        create_app(config, settings_schema=Settings, ui=UIConfig(
+            general_settings_fields=('count',),
+            settings_panes=(SettingsPane('custom', 'Custom', ('count',)),)))
+    for options in ({'graph_ranges': ()}, {'graph_ranges': ((float('nan'), 'x'),)},
+                    {'graph_ranges': ((0, 'x'),)}, {'graph_default_hours': 2},
+                    {'graph_ranges': ((24, 'a'), (24, 'b'))}):
+        with pytest.raises(ValueError):
+            UIConfig(**options)
+
+
+def test_factory_exposes_job_capacity(tmp_path):
+    application = create_app(RuntimeConfig(data_dir=tmp_path), job_factory=lambda db: {},
+                             job_concurrency=2, job_queue_size=0, job_history_size=3,
+                             job_snapshot_limit=1024)
+    with TestClient(application):
+        jobs = application.state.jobs
+        assert (jobs.concurrency, jobs.queue_size, jobs.history_size, jobs.snapshot_limit) == (
+            2, 0, 3, 1024)

@@ -5,6 +5,7 @@ Jinja template. Static assets use separate named mounts to avoid collisions.
 """
 
 import asyncio
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -46,6 +47,22 @@ class UIConfig:
     navigation: tuple[NavigationItem, ...] = ()
     settings_panes: tuple[SettingsPane, ...] = ()
     graph_enabled: bool = False
+    general_settings_fields: tuple[str, ...] = ("app_name", "theme")
+    graph_ranges: tuple[tuple[float, str], ...] = (
+        (1, "1hr"), (6, "6hr"), (12, "12hr"), (24, "24hr"),
+        (72, "3 days"), (168, "7 days"), (336, "14 days"), (696, "29 days"),
+    )
+    graph_default_hours: float = 24
+
+    def __post_init__(self) -> None:
+        if not self.graph_ranges or any(
+            not math.isfinite(hours) or hours <= 0 or not label
+            for hours, label in self.graph_ranges
+        ):
+            raise ValueError("Graph ranges must have positive finite hours and labels")
+        hours = [value for value, _ in self.graph_ranges]
+        if len(set(hours)) != len(hours) or self.graph_default_hours not in hours:
+            raise ValueError("Graph ranges must be unique and include the default")
 
 
 async def render_page(request: Request, name: str, **context) -> HTMLResponse:

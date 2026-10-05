@@ -13,6 +13,7 @@ import threading
 import uuid
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal
@@ -38,6 +39,26 @@ class JobContext:
     stop: threading.Event = field(default_factory=threading.Event)
     progress: Callable[[float], None] = lambda value: None
 
+    snapshot_limit: int = 65536
+    _snapshot: dict | None = field(default=None, init=False, repr=False)
+    _snapshot_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
+
+    def publish(self, value: dict) -> None:
+        """Publish a detached JSON snapshot, bounded in UTF-8 bytes; safe from worker threads."""
+        if not isinstance(value, dict):
+            raise ValueError("Job snapshots must be JSON objects")
+        encoded = json.dumps(value, allow_nan=False, ensure_ascii=False)
+        if len(encoded.encode("utf-8")) > self.snapshot_limit:
+            raise ValueError("Job snapshot exceeds its byte limit")
+        detached = json.loads(encoded)
+        with self._snapshot_lock:
+            self._snapshot = detached
+
+    def snapshot(self) -> dict | None:
+        """Read a defensive copy of the latest published measurements."""
+        with self._snapshot_lock:
+            return deepcopy(self._snapshot)
+
     def checkpoint(self) -> None:
         """Raise when the service should stop; call between bounded work units."""
         if self.stop.is_set():
@@ -54,6 +75,7 @@ class JobRecord(BaseModel):
     progress: float = 0
     created_at: str
     finished_at: str | None = None
+    snapshot: dict | None = None
     result: dict | None = None
     error: ErrorBody | None = None
     status_url: str
@@ -67,6 +89,7 @@ class JobDefinition:
     run: Callable[[dict, JobContext], Awaitable[dict]]
     timeout: float = 30
     save: Callable[[str, dict], Awaitable[None]] | None = None
+    finalize: Callable[[JobRecord], Awaitable[None]] | None = None
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.timeout) or self.timeout <= 0:
@@ -91,9 +114,14 @@ class JobManager:
         concurrency: int = 1,
         queue_size: int = 4,
         history_size: int = 100,
+        snapshot_limit: int = 65536,
     ) -> None:
         if concurrency < 1 or queue_size < 0 or history_size < concurrency + queue_size:
             raise ValueError("Invalid job capacity or history bound")
+        if snapshot_limit < 1:
+            raise ValueError("Snapshot limit must be positive")
+        self.snapshot_limit = snapshot_limit
+        self._started: set[str] = set()
         self.definitions = dict(definitions)
         self.concurrency, self.queue_size, self.history_size = concurrency, queue_size, history_size
         self.records: OrderedDict[str, JobRecord] = OrderedDict()
@@ -110,7 +138,26 @@ class JobManager:
             owner is not None and self.records[job_id].owner != owner
         ):
             raise DomainError("job_not_found", "Job is unavailable or has expired.", 404)
-        return self.records[job_id].model_copy(deep=True)
+        record = self.records[job_id].model_copy(deep=True)
+        if job_id in self._contexts:
+            record.snapshot = self._contexts[job_id].snapshot()
+        return record
+
+    def list_records(
+        self, *, owner: str, limit: int | None = None, offset: int = 0
+    ) -> list[JobRecord]:
+        """Return newest-first defensive snapshots scoped to an explicit owner."""
+        if limit is None:
+            limit = self.history_size
+        if limit < 1 or limit > self.history_size or offset < 0:
+            raise ValueError("Invalid job query bounds")
+        records = [record for record in reversed(self.records.values()) if record.owner == owner]
+        return [self.get(record.id, owner) for record in records[offset:offset + limit]]
+
+    def latest(self, *, owner: str) -> JobRecord | None:
+        """Return the owner's latest retained job, or None."""
+        records = self.list_records(owner=owner, limit=1)
+        return records[0] if records else None
 
     def submit(self, operation: str, parameters: dict, key: str, owner: str = "local") -> JobRecord:
         """Validate and enqueue, reusing matching operation-scoped idempotency keys."""
@@ -172,7 +219,8 @@ class JobManager:
                 record.progress = max(record.progress, min(0.99, max(0, value)))
 
         context = JobContext(
-            job_id, progress=lambda value: loop.call_soon_threadsafe(set_progress, value)
+            job_id, progress=lambda value: loop.call_soon_threadsafe(set_progress, value),
+            snapshot_limit=self.snapshot_limit
         )
         self._contexts[job_id] = context
         task = loop.create_task(
@@ -183,42 +231,70 @@ class JobManager:
         return self.get(job_id)
 
     def _forget(self, job_id: str) -> None:
+        self._started.discard(job_id)
         self._tasks.pop(job_id, None)
         self._contexts.pop(job_id, None)
 
     async def _execute(
         self, record: JobRecord, definition: JobDefinition, payload: dict, context: JobContext
     ) -> None:
+        self._started.add(record.id)
+        outcome = record.model_copy(deep=True)
+        acquired = False
         try:
-            async with self._semaphore:
-                record.status = "running"
-                result = await asyncio.wait_for(
-                    definition.run(payload, context), definition.timeout
-                )
-                # Commit is a cancellation boundary: once begun, save and success finish together.
-                self._committing.add(record.id)
-                if definition.save is not None:
-                    await definition.save(record.id, result)
-                record.result = result
-                record.progress = 1
-                record.status = "succeeded"
+            context.checkpoint()
+            await self._semaphore.acquire()
+            acquired = True
+            context.checkpoint()
+            record.status = "running"
+            result = await asyncio.wait_for(
+                definition.run(payload, context), definition.timeout
+            )
+            # Once saving begins, cancellation cannot interrupt persistence.
+            self._committing.add(record.id)
+            if definition.save is not None:
+                await definition.save(record.id, result)
+            outcome.result = result
+            outcome.progress = 1
+            outcome.status = "succeeded"
         except (asyncio.CancelledError, JobCancelled):
-            record.status = "cancelled"
+            outcome.status = "cancelled"
         except asyncio.TimeoutError:
-            record.status = "failed"
-            record.error = ErrorBody(
+            outcome.status = "failed"
+            outcome.error = ErrorBody(
                 code="job_timeout", message="The operation exceeded its time limit."
             )
         except DomainError as exc:
-            record.status = "failed"
-            record.error = ErrorBody(code=exc.code, message=exc.message, details=exc.details)
+            outcome.status = "failed"
+            outcome.error = ErrorBody(code=exc.code, message=exc.message, details=exc.details)
         except Exception:
             logger.exception("Job %s failed", record.id)
-            record.status = "failed"
-            record.error = ErrorBody(code="job_failed", message="The operation failed.")
+            outcome.status = "failed"
+            outcome.error = ErrorBody(code="job_failed", message="The operation failed.")
         finally:
+            self._committing.add(record.id)
+            outcome.finished_at = utc_timestamp(datetime.now(timezone.utc))
+            outcome.snapshot = context.snapshot()
+            if outcome.status != "succeeded":
+                outcome.progress = record.progress
+            if definition.finalize is not None:
+                try:
+                    await definition.finalize(outcome.model_copy(deep=True))
+                except (Exception, asyncio.CancelledError):
+                    logger.exception("Job %s finalization failed", record.id)
+                    outcome.status = "failed"
+                    outcome.result = None
+                    outcome.error = ErrorBody(
+                        code="job_finalize_failed", message="The job outcome could not be saved."
+                    )
+            record.result, record.error = outcome.result, outcome.error
+            record.snapshot, record.finished_at = outcome.snapshot, outcome.finished_at
+            if outcome.status == "succeeded":
+                record.progress = 1
+            record.status = outcome.status
             self._committing.discard(record.id)
-            record.finished_at = utc_timestamp(datetime.now(timezone.utc))
+            if acquired:
+                self._semaphore.release()
 
     def cancel(self, job_id: str, owner: str | None = None) -> JobRecord:
         """Request cancellation; completed or committing jobs cannot be cancelled."""
@@ -230,8 +306,9 @@ class JobManager:
         context = self._contexts[job_id]
         if not context.stop.is_set():
             context.stop.set()
-            self._tasks[job_id].cancel()
-        if record.status == "queued":
+            if job_id in self._started:
+                self._tasks[job_id].cancel()
+        if record.status == "queued" and self.definitions[record.operation].finalize is None:
             self.records[job_id].status = "cancelled"
             self.records[job_id].finished_at = utc_timestamp(datetime.now(timezone.utc))
         return self.get(job_id)

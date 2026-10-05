@@ -126,6 +126,8 @@ to add ping functionality to the shared foundation itself.
 - Replace example composition in both browser and desktop entrypoints and update
   the CLI and example-specific test scripts. Keep framework regression coverage;
   do not delete old persisted tables or user settings merely to remove demo UI.
+- Set a distinct, stable application ID in `app/identity.json` before installing a clone.
+  Never reuse another product’s ID or adopt its legacy installation.
 - Keep each app's installation, runtime data, and simultaneous-listening port
   separate. Check inherited environment overrides when validating installed apps.
   Changes to defaults must not rewrite existing preferences or select another
@@ -493,3 +495,17 @@ v0.<year>.<doy>.<x>
 - A derived application may maintain a separate application version; document its
   canonical source without duplicating the foundation version.
 - Documentation-only changes, including this file, do not require a version bump.
+
+## Reusable extensions added after downstream application review
+
+- `create_app` exposes job concurrency, queue/history bounds, and snapshot byte limits.
+- Use owner-scoped `JobManager.latest`/`list_records`, bounded `JobContext.publish`,
+  and optional `JobDefinition.finalize`; see `docs/jobs.md` for cancellation and save rules.
+- Use `pwaf_foundation.processes.run_process` for streamed native output; keep command
+  construction, parsing, and metric semantics in the application.
+- `UIConfig` supports General-field ownership and configurable Graphum ranges;
+  shared browser code emits `settings-loaded` and tolerates omitted navigation/settings.
+- `launch_desktop` accepts app-owned title and confirmation policy. Native icon
+  selection remains the existing fixed-path contract.
+- The repository remains private. Preserve notices and distinguish local verification
+  from remote CI/native targets. Do not change visibility or publish without authorization.
