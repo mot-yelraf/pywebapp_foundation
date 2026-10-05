@@ -48,7 +48,7 @@ launch.py               Standard-library release selector
 run.sh / run.ps1        Stable launchers
 releases/<id>/.venv/    Independent runtime and installed application package
 data/                   Settings and SQLite state, created by the runtime
-.pwaf-install           Identifies an installer-owned destination
+.pwaf-install           JSON format version and stable application identifier
 ```
 
 Run the printed `run.sh` or `run.ps1` path. Runtime configuration comes from the
@@ -148,3 +148,30 @@ macOS ARM64 was exercised with a real native window, real browser-only installs 
 reinstalls, installed launch, and data preservation. Windows PowerShell and
 Linux/Raspberry Pi native behavior require testing on those actual platforms; unit
 doubles and a configured CI matrix are not evidence of a native run.
+
+## Installation identity
+
+`app/identity.json` contains `{"id": "pywebapp-foundation"}`. Derived applications
+must choose their own stable identifier before their first installation, using
+1–128 lowercase letters, digits, dots, underscores, or hyphens, beginning with a
+letter or digit. This file is included in the application package. Display names,
+versions, and directory names may change without changing the identifier.
+
+The installer writes `{"format": 1, "application_id": "..."}` to `.pwaf-install`.
+An identifier mismatch always rejects the destination before release preparation
+or activation. A malformed marker is rejected as well. The identifier prevents
+accidental cross-application upgrades; it is not an authentication mechanism.
+
+Older releases used an empty marker. Stop the app, back up its data, and verify
+that the destination belongs to the source application before adopting it:
+
+```sh
+./install.sh --destination /absolute/path/to/existing-app --adopt-legacy-install
+```
+
+PowerShell uses `-Destination ... -AdoptLegacyInstall`. Adoption requires an
+explicit destination, applies only to empty legacy markers, and cannot override a
+known mismatch. The marker is assigned under the install lock before preparation;
+if dependency installation fails, the assigned identity remains, while activation
+and user data remain unchanged. Retry normally with the same application identity.
+Never use adoption to turn one application’s installation into another application.

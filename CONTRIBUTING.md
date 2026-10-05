@@ -124,3 +124,14 @@ When adding dependencies or assets, document their source and applicable notices
 Do not claim planned features or untested platforms are verified. The project is
 pre-1.0; shared interfaces can evolve, but installed settings/data and documented
 extension contracts require deliberate compatibility handling.
+
+## Private repository workflow
+
+This repository remains private. Use branches and pull requests, verify CI for the
+PR revision, and merge through the repository workflow. Do not change repository
+visibility as part of publishing a branch or merging a pull request.
+
+Keep credentials, runtime data, and private derived-application details out of
+commits and test fixtures. Preserve license and third-party notices when sharing
+packages with authorized collaborators. Sensitive reports can use the maintainer
+contact in [Code of Conduct](CODE_OF_CONDUCT.md#enforcement).

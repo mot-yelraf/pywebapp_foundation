@@ -79,3 +79,21 @@ The reusable SVGs live at `static/icons/settings-gear.svg` and
 `static/icons/dashboard-graph.svg`. CSS masks allow both to inherit the toolbar's
 current text color across light and dark themes. The gear is original SVG artwork;
 the graph glyph is adapted from Caelus, with generic labeling and theme-aware color.
+
+## Application time ranges and live refreshes
+
+Use hours as the unit, including fractions for minutes; default ranges are unchanged:
+
+```python
+ui = UIConfig(graph_enabled=True,
+              graph_ranges=((1/60, "1min"), (5/60, "5min"), (1, "1hr")),
+              graph_default_hours=1/60)
+```
+
+Ranges must be nonempty, finite, positive, and unique, with a nonempty label and
+a default included in the range list. The initial selection comes from the
+rendered template. No `graph.html` copy is needed to change these controls.
+`setSeries()` retains existing metric controls when IDs, labels, and units match,
+so live updates preserve checkbox focus. Plot replacement preserves ancestor
+scroll positions at desktop and mobile sizes. Applications still own polling,
+sampling, data bounds, and missing-value semantics.

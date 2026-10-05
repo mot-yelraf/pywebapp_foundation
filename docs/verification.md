@@ -1,8 +1,45 @@
 # Verification record
 
-Current version: `v0.26.264.12` (2026-09-21).
+Current version: `v0.26.277.1` (2026-10-04).
 The results below record local verification. Remote CI results are available in
 [GitHub Actions](https://github.com/mot-yelraf/pywebapp_foundation/actions).
+
+## Foundation extension gaps (2026-10-04)
+
+Implemented stable installation identity and explicit legacy adoption; reusable
+desktop title/confirmation and listener restart behavior; configurable General
+fields and Graphum ranges; settings-load events and optional navigation/settings;
+bounded streamed subprocess execution; job capacity options, owner-scoped queries,
+live snapshots, and finalization for success/failure/timeout/cancellation.
+
+Local macOS ARM64 / Python 3.13.9 verification:
+
+- `python -m pytest -q -W error --cov --cov-report=term-missing`: 142 passed,
+  98.34% combined statement/branch coverage; the 95% gate passes.
+- Ruff, compileall, and Git whitespace checks pass.
+- `scripts/playwright_verify.py`: desktop/mobile, settings, keyboard focus,
+  live graph focus/scroll preservation, custom minute range, and minimal layout pass.
+  Graph screenshots were inspected. Browser tests use controlled application data.
+- `scripts/smoke_verify.py` and `scripts/verify_clone.py` pass: live HTTP settings,
+  CSRF, readiness, and clean-copy adaptation with unchanged foundation hashes.
+- `scripts/verify_install.py`: real clean browser-only install/reinstall in a
+  temporary path containing spaces, persisted settings/unknown fields/SQLite
+  preservation, isolated package probe and installed launcher startup pass.
+  Identity mismatch, malformed markers, and explicit legacy adoption are covered
+  by deterministic installer tests; no existing installation was changed.
+- `scripts/verify_desktop.py`: real macOS pywebview page load, browser HTTP access,
+  window close, and server shutdown pass. Three additional real HTTP/server
+  startup/shutdown cycles on one port pass with a GUI double.
+- Source archive and wheel builds pass. Package inspection checks the application
+  identity, process module, updated job/UI assets, SPDX license metadata and notices.
+
+Native confirmation accept/decline and Windows listener options are tested with
+GUI/platform doubles. Actual native dialog clicks, Windows/Linux desktop operation,
+physical Raspberry Pi, and current remote CI were not verified in this change set.
+No proxy/network-tool integrations were added. The repository remains private;
+branch publication and PR merge do not change its visibility. Package license
+metadata and notices are retained. The results above describe local pre-PR checks;
+remote results belong to the corresponding GitHub Actions run.
 
 ## GitHub Actions runtime update
 

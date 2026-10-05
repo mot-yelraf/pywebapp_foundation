@@ -34,6 +34,10 @@ def create_app(
     routers: Sequence[APIRouter] = (),
     ui: UIConfig | None = None,
     job_factory: Callable[[Database], dict[str, JobDefinition]] | None = None,
+    job_concurrency: int = 1,
+    job_queue_size: int = 4,
+    job_history_size: int = 100,
+    job_snapshot_limit: int = 65536,
 ) -> FastAPI:
     """Build an isolated app with explicit settings, migration, route, and health extensions."""
     runtime = config if config is not None else RuntimeConfig.from_env()
@@ -59,7 +63,10 @@ def create_app(
             await asyncio.to_thread(database.migrate, migration_sets)
             logger.info("Runtime data directory: %s", runtime.data_dir)
             if job_factory is not None:
-                application.state.jobs = JobManager(job_factory(database))
+                application.state.jobs = JobManager(
+                    job_factory(database), concurrency=job_concurrency, queue_size=job_queue_size,
+                    history_size=job_history_size, snapshot_limit=job_snapshot_limit,
+                )
             application.state.started = True
             yield
         finally:

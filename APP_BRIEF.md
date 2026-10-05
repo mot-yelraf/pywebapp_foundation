@@ -5,6 +5,9 @@ This is a product brief, not runtime configuration. Bracketed values and uncheck
 items are undecided; agents must not invent them as approved requirements. Record
 reasonable implementation assumptions separately. Do not put credentials here.
 
+Installation identity: set a distinct stable `id` in `app/identity.json` before installing.
+Keep it unchanged across upgrades; never adopt another app’s installation.
+
 ## Purpose and audience
 
 - Application name: [display name]

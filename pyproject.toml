@@ -8,6 +8,8 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 requires-python = ">=3.10"
 description = "A browser-first foundation for Python applications"
 readme = "README.md"
+license = "BSD-2-Clause"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 
 [tool.setuptools.dynamic]
 version = {attr = "pwaf_foundation.__version__"}
@@ -21,7 +23,7 @@ include = ["pwaf_foundation*", "app*"]
 [tool.setuptools.package-data]
 pwaf_foundation = ["templates/*.html", "static/*.css", "static/*.js",
   "static/*.webmanifest", "static/icons/*", "static/icons/*/*"]
-app = ["templates/*.html", "static/*.css", "static/*.js"]
+app = ["identity.json", "templates/*.html", "static/*.css", "static/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

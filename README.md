@@ -39,8 +39,8 @@ not an application already included in this repository.**
 
 ### 1. Clone and name the project
 
-The foundation repository is private; your GitHub account must have access.
-Authenticate Git with GitHub, then run these commands from your projects directory:
+The repository is private. Authenticate with a GitHub account that has access,
+then run these commands from your projects directory:
 
 ```sh
 git clone https://github.com/mot-yelraf/pywebapp_foundation.git PingTest
@@ -48,6 +48,9 @@ cd PingTest
 git remote rename origin upstream
 git switch -c build-pingtest
 ```
+
+Set `app/identity.json` to `{"id": "pingtest"}` before installing your derived app.
+Keep that identifier stable across upgrades; the installer rejects other apps’ destinations.
 
 The folder is now `PingTest`; this does not change the UI name, Python distribution
 name, or native window title. Those are separate branding steps for the agent.
@@ -306,9 +309,9 @@ combined; it complements explicit failure-path tests.
 Verified locally on macOS ARM64 with Python 3.13: strict-warning tests, the 95%
 coverage gate, Ruff, browser checks, real installation/reinstallation, native window
 startup/shutdown, and a clean-copy application adaptation. See the verification
-record for exact results and optional proxy checks. The configured cross-platform
-CI matrix has not run here; Windows, Linux, and physical Raspberry Pi runtime
-behavior remain unverified on those actual platforms.
+record for exact results and optional proxy checks. The verification record includes earlier Linux/macOS CI results and a Windows
+correction; current remote CI status must be checked independently. Windows/Linux
+native desktop operation and physical Raspberry Pi behavior remain unverified.
 
 PWAF includes original platform icons for macOS, iOS, Android, and browsers.
 See [icon assets and regeneration](docs/icons.md).
@@ -316,3 +319,20 @@ See [icon assets and regeneration](docs/icons.md).
 The shared toolbar includes a Settings gear. App developers can opt into the
 [Graphum graph window](docs/graphs.md) with `UIConfig(graph_enabled=True)` and
 supply their application-specific metrics and data.
+
+## Reusable application controls
+
+The [extension guide](docs/extending.md) covers configurable General settings,
+settings load/save events, optional navigation, and desktop title/quit handling.
+[Graphum](docs/graphs.md) supports application-defined time ranges and live updates
+that preserve focus and scrolling. [Jobs](docs/jobs.md) expose capacity settings,
+owner-scoped queries, bounded live snapshots, and all-outcome finalization;
+`run_process` supports bounded streamed command output without domain-specific code.
+
+Installations now carry a stable application identity. Existing empty markers need
+an explicit, one-time [legacy adoption](docs/installation.md#installation-identity)
+after checking which application owns the destination. No stored preferences or
+schemas are reset by this change.
+
+The project uses the [BSD 2-Clause license](LICENSE); preserve its copyright and
+[third-party notices](THIRD_PARTY_NOTICES.md) when redistributing derived apps.

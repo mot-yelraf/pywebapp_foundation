@@ -127,6 +127,7 @@ def main() -> None:
             ),
         )
         before = hashes(target / "pwaf_foundation")
+        (target / "app/identity.json").write_text(' {"id": "notebook-lab"}\n')
         (target / "app/example.py").write_text(EXAMPLE)
         (target / "app/services/echo.py").write_text(
             "def transform(text):\n    return text.upper()\n"

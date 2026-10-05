@@ -5,13 +5,11 @@ reaped on cancellation; POSIX descendants in the created process group are kille
 """
 
 import asyncio
-import os
-import signal
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from pwaf_foundation.errors import DomainError
 from pwaf_foundation.jobs import JobContext
+from pwaf_foundation.processes import run_process
 
 
 @dataclass(frozen=True)
@@ -47,63 +45,9 @@ class SubprocessAdapter:
             raise ValueError("Output limit must be positive")
 
     async def __call__(self, parameters: dict, context: JobContext) -> dict:
-        arguments = tuple(self.command(parameters))
-        if not arguments or any(not isinstance(item, str) for item in arguments):
-            raise ValueError("Command builder must return a nonempty argument list")
         context.checkpoint()
-        spawn = asyncio.create_task(
-            asyncio.create_subprocess_exec(
-                *arguments,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=self.cwd,
-                start_new_session=os.name == "posix",
-            )
+        result = await run_process(
+            self.command(parameters), output_limit=self.output_limit,
+            cwd=self.cwd, terminate_grace=0,
         )
-        try:
-            process = await asyncio.shield(spawn)
-        except asyncio.CancelledError:
-            process = await spawn
-            await _terminate(process)
-            raise
-        captured = 0
-
-        async def read(stream: asyncio.StreamReader) -> str:
-            nonlocal captured
-            chunks = []
-            while block := await stream.read(4096):
-                captured += len(block)
-                if captured > self.output_limit:
-                    raise DomainError("output_limit", "Tool output exceeded its limit.")
-                chunks.append(block)
-            return b"".join(chunks).decode("utf-8", errors="replace")
-
-        readers = [
-            asyncio.create_task(read(process.stdout)),
-            asyncio.create_task(read(process.stderr)),
-        ]
-        try:
-            stdout, stderr = await asyncio.gather(*readers)
-            code = await process.wait()
-            if code != 0:
-                raise DomainError("tool_failed", "The tool exited unsuccessfully.")
-            return {"stdout": stdout, "stderr": stderr, "returncode": code}
-        finally:
-            for reader in readers:
-                reader.cancel()
-            await asyncio.gather(*readers, return_exceptions=True)
-            await _terminate(process)
-
-
-async def _terminate(process: asyncio.subprocess.Process) -> None:
-    # Also kill descendants holding inherited pipes after the leader exits.
-    try:
-        if os.name == "posix":
-            os.killpg(process.pid, signal.SIGKILL)
-        elif process.returncode is None:
-            process.kill()
-    except ProcessLookupError:
-        pass
-    # Drain bounded pipe/transport buffers after killing writers before waiting.
-    await asyncio.gather(process.stdout.read(), process.stderr.read())
-    await process.wait()
+        return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}

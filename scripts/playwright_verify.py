@@ -27,6 +27,9 @@ def verify(origin: str, output_dir: Path | None) -> None:
             page = browser.new_page(viewport={"width": 1440, "height": 1000})
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
+            page.add_init_script("""document.addEventListener('settings-loaded', event => {
+                window.loadedSettings = event.detail;
+            });""")
             page.goto(origin)
             expect(
                 page.get_by_role("heading", name="A home for your Python tools.")
@@ -46,6 +49,8 @@ def verify(origin: str, output_dir: Path | None) -> None:
                 page.get_by_role("checkbox", name=f"Metric {index}").click()
             expect(page.locator(".graph-plot svg")).to_have_count(4)
             expect(page.locator("#graph-status")).to_have_text("Select at most four metrics.")
+            page.get_by_role("button", name="1min", exact=True).click()
+            expect(page.locator("#graph-range-title")).to_have_text("Last 1 minute")
             page.get_by_role("button", name="1hr", exact=True).click()
             expect(page.locator("#graph-range-title")).to_have_text("Last 1 hour")
             expect(page.get_by_role("button", name="1hr", exact=True)).to_have_attribute(
@@ -54,6 +59,23 @@ def verify(origin: str, output_dir: Path | None) -> None:
             expect(page.get_by_role("button", name="24hr", exact=True)).to_have_attribute(
                 "aria-pressed", "false"
             )
+            # Updates must preserve keyboard focus and scroll at desktop/mobile widths.
+            for width in (1440, 390, 320):
+                page.set_viewport_size({"width": width, "height": 700})
+                page.get_by_role("checkbox", name="Metric 1").focus()
+                page.evaluate("""() => {
+                    const scroller = document.querySelector(innerWidth <= 760
+                        ? '.graph-workspace' : '.graph-stage');
+                    scroller.scrollTop = 100;
+                    const before = scroller.scrollTop;
+                    for (let n = 0; n < 3; n++) PWAF.graph.setSeries(
+                        Array.from({length:5}, (_,i) => ({id:`metric${i}`,
+                            label:i===0?'<script>unsafe</script>':`Metric ${i}`,unit:'ms',
+                            points:[{x:Date.now()-30000,y:0},{x:Date.now(),y:i+1}]})));
+                    if (Math.abs(scroller.scrollTop-before)>2) throw Error('Scroll moved');
+                }""")
+                expect(page.get_by_role("checkbox", name="Metric 1")).to_be_focused()
+            page.set_viewport_size({"width": 1440, "height": 1000})
             if output_dir:
                 output_dir.mkdir(parents=True, exist_ok=True)
                 page.screenshot(path=str(output_dir / "graphum-desktop.png"))
@@ -61,6 +83,7 @@ def verify(origin: str, output_dir: Path | None) -> None:
             expect(page.get_by_role("button", name="Graph", exact=True)).to_be_focused()
             page.get_by_role("button", name="Settings", exact=True).click()
             expect(page.get_by_label("App Name")).to_be_enabled()
+            page.wait_for_function("window.loadedSettings?.app_name !== undefined")
             page.get_by_label("App Name").fill("<script>alert('unsafe')</script>")
             page.get_by_role("button", name="Save general").click()
             expect(page.locator("#pane-general .form-status")).to_have_text("Saved.")
@@ -190,6 +213,12 @@ def verify(origin: str, output_dir: Path | None) -> None:
                 page.get_by_role("button", name="Menu", exact=True).click()
                 if output_dir and width == 390:
                     page.screenshot(path=str(output_dir / "performance-mobile.png"), full_page=True)
+            # An application may omit navigation and shared settings entirely.
+            page.route("**/", lambda route: route.fulfill(content_type="text/html", body=
+                '<html><head><script defer src="/static/foundation/foundation.js"></script>'
+                '</head><body><main>Minimal application</main></body></html>'))
+            page.goto(origin + '/')
+            expect(page.locator('main')).to_have_text('Minimal application')
             assert not errors, errors
             page.close()
             print(
@@ -230,7 +259,8 @@ from app.example import example_options
 from pwaf_foundation.config import RuntimeConfig
 config = RuntimeConfig.from_env()
 options = example_options()
-options['ui'] = replace(options['ui'], graph_enabled=True)
+options['ui'] = replace(options['ui'], graph_enabled=True,
+                        graph_ranges=((1/60, '1min'), *options['ui'].graph_ranges))
 uvicorn.run(create_app(config, **options), host=config.host, port=config.port,
             log_level=config.log_level.lower(), proxy_headers=False)
 """],

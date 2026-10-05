@@ -31,9 +31,16 @@ window.PWAF = (() => {
 })();
 
 document.addEventListener('DOMContentLoaded', () => {
+  const toggle = document.querySelector('#menu-toggle');
+  toggle?.addEventListener('click', () => {
+    const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+    toggle.setAttribute('aria-expanded', String(expanded));
+    document.querySelector('#main-navigation')?.classList.toggle('open', expanded);
+  });
   const dialog = document.querySelector('#settings-dialog');
   const opener = document.querySelector('#open-settings');
   const loadStatus = document.querySelector('#settings-load-status');
+  if (!dialog || !opener) return;
   const forms = [...dialog.querySelectorAll('form')];
   let savedTheme = document.documentElement.dataset.theme;
   let generation = 0;
@@ -77,6 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       PWAF.status(loadStatus, '');
+      document.dispatchEvent(new CustomEvent('settings-loaded', {detail: settings}));
     } catch (error) {if (current === generation) PWAF.status(loadStatus, error.message, true);}
   });
   function close() {if (!saving) dialog.close();}
@@ -114,12 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
       forms.forEach(item => [...item.elements].forEach(input => input.disabled = false));
     }
   }));
-  const toggle = document.querySelector('#menu-toggle');
-  toggle.addEventListener('click', () => {
-    const expanded = toggle.getAttribute('aria-expanded') !== 'true';
-    toggle.setAttribute('aria-expanded', String(expanded));
-    document.querySelector('#main-navigation').classList.toggle('open', expanded);
-  });
+
 });
 
 // Optional shared dialogs use data-open-dialog/data-close-dialog with a local ID.

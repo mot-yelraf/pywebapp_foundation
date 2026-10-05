@@ -11,9 +11,10 @@ The brief records decisions; it does not automatically configure the application
 | --- | --- |
 | Repository and folder | Clone into a new directory; keep foundation remote as `upstream` and your app as `origin` |
 | Distribution name, description, authors, support URLs | Review `[project]` in `pyproject.toml`; changing the distribution name does not rename Python modules |
+| Installation identity | Set a unique, stable `id` in `app/identity.json` before installing; retain it across upgrades |
 | Default display name | Subclass `FoundationSettings`, override `app_name` with its validation bounds, pass the schema to `create_app` |
 | API title | The application-owned FastAPI construction in `app/app.py` currently uses a fixed title |
-| Native window title | `launch_desktop` currently uses a fixed title; add a generic optional title argument if needed, passed from `app/` |
+| Native window title | Pass `title="Your App"` to `launch_desktop` from `app/` |
 | Page/sidebar/header/footer text | Override application templates; the default layout is `pwaf_foundation/templates/base.html` |
 | Browser/mobile identity and icons | Follow [icon customization](icons.md#derived-application-customization), including manifest identity and colors |
 | Installer prompts and success text | Inspect `scripts/install_runtime.py` and wrapper scripts for user-facing PWAF wording |

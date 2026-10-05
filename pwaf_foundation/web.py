@@ -46,7 +46,7 @@ def register_web(
     )
     if ui.static_dir is not None:
         app.mount("/static/app", StaticFiles(directory=ui.static_dir), name="app_static")
-    panes = (SettingsPane("general", "General", ("app_name", "theme")), *ui.settings_panes)
+    panes = (SettingsPane("general", "General", ui.general_settings_fields), *ui.settings_panes)
     keys, owned = set(), set()
     for pane in panes:
         if pane.key in keys or owned.intersection(pane.fields):

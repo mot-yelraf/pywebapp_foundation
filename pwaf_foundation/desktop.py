@@ -12,6 +12,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 import uvicorn
@@ -27,6 +28,9 @@ def launch_desktop(
     webview_module=None,
     server_factory=uvicorn.Server,
     startup_timeout: float = 15,
+    title: str = "Python Web App",
+    confirm_exit: Callable[[], bool] | None = None,
+    quit_message: str = "Stop running work and quit?",
 ) -> None:
     """Wait for server startup, run the native GUI on the main thread, then stop it."""
     if config.mode != "local":
@@ -40,6 +44,11 @@ def launch_desktop(
             ) from exc
     family = socket.AF_INET6 if ":" in config.host else socket.AF_INET
     with socket.socket(family) as listener:
+        # Windows needs exclusive ownership; POSIX needs TIME_WAIT reuse.
+        if sys.platform == "win32":
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        else:
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind((config.host, config.port))
         listener.listen(128)
         listener.setblocking(False)
@@ -73,12 +82,17 @@ def launch_desktop(
                     raise RuntimeError("Desktop server startup timed out")
                 time.sleep(0.01)
             window = webview_module.create_window(
-                "Python Web App",
+                title,
                 origin,
                 width=1200,
                 height=850,
                 min_size=(360, 500),
             )
+
+            if confirm_exit is not None:
+                install_quit_handler(
+                    window, server, worker, confirm_exit, title, quit_message
+                )
 
             def watch_server() -> None:
                 worker.join()
@@ -128,3 +142,41 @@ def set_macos_app_icon() -> None:
         AppHelper.callAfter(apply_icon)
     except ImportError:
         logging.getLogger(__name__).warning("macOS icon support is unavailable")
+
+
+def install_quit_handler(window, server, worker, confirm_exit, title, message) -> None:
+    """Veto native close until confirmation and owned-server cleanup finish.
+
+    Dialog work runs off the closing callback so Cocoa's main loop can display
+    the native prompt. Repeated close requests cannot spawn duplicate prompts.
+    """
+    lock = threading.Lock()
+    approved = False
+
+    def closing():
+        if approved or not worker.is_alive():
+            return True
+        if not lock.acquire(blocking=False):
+            return False
+
+        def finish():
+            nonlocal approved
+            try:
+                if confirm_exit() and not window.create_confirmation_dialog(title, message):
+                    return
+                server.should_exit = True
+                worker.join(timeout=35)
+                if worker.is_alive():
+                    logging.getLogger(__name__).error("Shutdown is still waiting for cleanup")
+                    return
+                approved = True
+                window.destroy()
+            except Exception:
+                logging.getLogger(__name__).exception("Could not complete desktop shutdown")
+            finally:
+                lock.release()
+
+        threading.Thread(target=finish, name="pwaf-desktop-quit", daemon=True).start()
+        return False
+
+    window.events.closing += closing

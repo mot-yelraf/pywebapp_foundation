@@ -2,7 +2,7 @@
 
 ## Composition and lifecycle
 
-`app.app.create_app` is the application composition root. The reusable `foundation`
+`app.app.create_app` is the application composition root. The reusable `pwaf_foundation`
 package never imports `app`. The factory accepts a `RuntimeConfig`, a settings
 schema, namespaced migrations, required readiness checks, and application routers.
 Importing modules or creating the app does not create runtime files.
