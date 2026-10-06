@@ -23,8 +23,8 @@ corners; the platform applies its own mask.
 
 The default page includes favicon, Apple touch, and web manifest links and shows
 the mark in the sidebar. The macOS pywebview launcher sets the running application's
-Dock/app-switcher icon. ICNS/iconset and ICO files are also available for downstream
-app-bundle packaging; this change does not turn `run.sh` into a Finder `.app` bundle.
+Dock/app-switcher icon. Desktop installs use ICNS/ICO/PNG assets for
+[per-user native launchers](installation.md#native-launchers-and-application-name).
 Mobile assets and a manifest do not provide offline behavior or a native mobile app.
 Actual iOS/Android launcher rendering and Xcode import have not been tested.
 
@@ -67,12 +67,11 @@ Android safe circle rather than relying on the default scale factor alone.
 
 For application-owned branding, put icons and a manifest in `app/static/` and a
 custom base template in `app/templates/`, and register both directories in
-`UIConfig`. Use the `app_static` route for those links. The existing app package-data
-patterns only list CSS/JS and templates: add manifest and nested icon patterns to
-`pyproject.toml`, and adapt the generator's output directory. The desktop loader
-still uses its fixed foundation path; application-owned native artwork additionally
-requires a generic optional icon-path extension passed by the app. No such desktop
-icon override is currently provided by `UIConfig`.
+`UIConfig`. Use the `app_static` route for those links. The default app package-data
+patterns include nested static assets. Adapt the generator’s output directory
+and set `icon_dir`/`icon_stem` in `app/identity.json`. The desktop entrypoint passes
+`DesktopIdentity` to `launch_desktop`; native icon selection is independent of
+`UIConfig`. Omitted identity retains the foundation artwork.
 
 Renaming files is optional. When doing so, change all references in the table in one
 reviewable update. Web manifest icon URLs are relative to the manifest location;

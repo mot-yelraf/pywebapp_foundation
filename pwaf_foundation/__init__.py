@@ -3,4 +3,4 @@
 The foundation is independent of any derived application's business logic.
 """
 
-__version__ = "v0.26.277.1"
+__version__ = "v0.26.279.1"

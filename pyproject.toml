@@ -22,8 +22,8 @@ include = ["pwaf_foundation*", "app*"]
 
 [tool.setuptools.package-data]
 pwaf_foundation = ["templates/*.html", "static/*.css", "static/*.js",
-  "static/*.webmanifest", "static/icons/*", "static/icons/*/*"]
-app = ["identity.json", "templates/*.html", "static/*.css", "static/*.js"]
+  "static/*.webmanifest", "static/icons/*", "static/icons/*/*", "static/launchers/*"]
+app = ["identity.json", "templates/*.html", "static/*", "static/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

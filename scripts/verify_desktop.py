@@ -18,9 +18,28 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--installed", action="store_true",
                         help="Test this interpreter’s installed packages, excluding source imports")
+    parser.add_argument("--identity", action="store_true",
+                        help="Verify the application-owned native name and icons")
+    parser.add_argument("--identity-home", type=Path,
+                        help="Put native identity bundles in an isolated test directory")
+    parser.add_argument("--expected-prefix", type=Path,
+                        help="Assert that native relaunch retains this virtual environment")
     args = parser.parse_args()
     if not args.installed:
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+    if args.identity:
+        from app import desktop as app_desktop
+        from pwaf_foundation.identity import DesktopIdentity
+        from pwaf_foundation.launchers import prepare_desktop_identity
+
+        identity = DesktopIdentity.load(Path(app_desktop.__file__).with_name("identity.json"))
+        prepare_desktop_identity(identity, module="scripts.verify_desktop",
+                                 bundle_root=args.identity_home,
+                                 entrypoint=Path(__file__).resolve())
+
+    if args.expected_prefix:
+        assert Path(sys.prefix).resolve() == args.expected_prefix.resolve(), sys.prefix
 
     import webview
 
@@ -37,7 +56,7 @@ def main() -> None:
             self.window.events.loaded += loaded.set
             return self.window
 
-        def start(self):
+        def start(self, **kwargs):
             def check():
                 try:
                     if not loaded.wait(20):
@@ -49,18 +68,28 @@ def main() -> None:
                     ) as response:
                         assert response.status == 200
                         assert b"Python tools" in response.read()
+                    if args.identity and sys.platform == "darwin":
+                        from AppKit import NSApplication
+                        from Foundation import NSBundle
+
+                        assert NSBundle.mainBundle().objectForInfoDictionaryKey_(
+                            "CFBundleName") == identity.name
+                        menu = NSApplication.sharedApplication().mainMenu()
+                        app_menu = menu.itemAtIndex_(0).submenu()
+                        assert identity.name in app_menu.itemAtIndex_(0).title()
                     outcomes.append(True)
                 finally:
                     self.window.destroy()
 
-            webview.start(check)
+            webview.start(check, **kwargs)
 
     with tempfile.TemporaryDirectory(prefix="pwaf-native-") as directory:
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
         config = RuntimeConfig(port=port, data_dir=Path(directory), log_level="WARNING")
-        launch_desktop(create_example_app(config), config, webview_module=CheckedWebview())
+        launch_desktop(create_example_app(config), config, webview_module=CheckedWebview(),
+                       **({"identity": identity, "title": identity.name} if args.identity else {}))
         assert outcomes == [True]
     print(
         "Native desktop verified: real page load, browser HTTP access, "

@@ -18,6 +18,11 @@ import uuid
 import venv
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from pwaf_foundation.identity import DesktopIdentity  # noqa: E402
+from pwaf_foundation.launchers import install_launchers  # noqa: E402
+
 PROBE = """
 import json, os, socket, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from pwaf_foundation import __version__
@@ -161,7 +166,8 @@ def validate_identity(marker: Path, identity: str, adopt_legacy: bool) -> None:
 
 
 def install(
-    source: Path, destination: Path, *, desktop: bool = True, adopt_legacy: bool = False
+    source: Path, destination: Path, *, desktop: bool = True,
+    adopt_legacy: bool = False, shortcuts: bool = True
 ) -> Path:
     """Build a verified release and switch activation while preserving installed data."""
     source, destination = source.resolve(), destination.expanduser().resolve()
@@ -170,6 +176,7 @@ def install(
     if not (source / "pyproject.toml").is_file():
         raise ValueError("Source must contain pyproject.toml")
     identity = application_identity(source)
+    native_identity = DesktopIdentity.load(source / "app/identity.json")
     marker = destination / ".pwaf-install"
     if destination.exists() and any(destination.iterdir()) and not marker.is_file():
         raise ValueError("Choose an empty destination or an existing PWAF installation")
@@ -211,6 +218,8 @@ def install(
             f"& '{powershell_python}' (Join-Path $PSScriptRoot 'launch.py') @args\n"
             "exit $LASTEXITCODE\n",
         )
+        if desktop and shortcuts:
+            install_launchers(destination, native_identity, Path(bootstrap))
         atomic_write(
             destination / "active.json",
             json.dumps({"release": release.name, "desktop": desktop}) + "\n",
@@ -232,6 +241,8 @@ def main() -> None:
     mode.add_argument("--desktop", dest="desktop", action="store_true", help="Default")
     mode.add_argument("--browser-only", dest="desktop", action="store_false",
                       help="Omit desktop dependencies and launch only the web server")
+    parser.add_argument("--no-shortcuts", action="store_true",
+                        help="Skip per-user native launchers (desktop runtime still installed)")
     parser.set_defaults(desktop=True)
     args = parser.parse_args()
     try:
@@ -244,7 +255,7 @@ def main() -> None:
         destination = destination.expanduser().resolve()
         release = install(
             Path(__file__).resolve().parents[1], destination, desktop=args.desktop,
-            adopt_legacy=args.adopt_legacy_install
+            adopt_legacy=args.adopt_legacy_install, shortcuts=not args.no_shortcuts
         )
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         raise SystemExit(

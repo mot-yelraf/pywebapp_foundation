@@ -102,9 +102,12 @@ def test_desktop_main(monkeypatch, tmp_path):
     monkeypatch.setattr("pwaf_foundation.desktop._ready", lambda origin: True)
     calls = []
     monkeypatch.setenv("PWAF_DATA_DIR", str(tmp_path))
-    monkeypatch.setattr("app.desktop.launch_desktop", lambda *args: calls.append(args))
+    monkeypatch.setattr("app.desktop.launch_desktop",
+                        lambda *args, **kwargs: calls.append((args, kwargs)))
+    monkeypatch.setattr("app.desktop.prepare_desktop_identity", lambda *a, **k: None)
     main()
     assert calls
+    assert calls[0][1]["title"] == "Python Web App"
     monkeypatch.setenv("PWAF_MODE", "wrong")
     with pytest.raises(SystemExit):
         main()
@@ -408,3 +411,41 @@ def test_desktop_identity_and_socket_ownership(monkeypatch, tmp_path, platform):
                    webview_module=gui, server_factory=Server)
     assert titles == ['Custom Tool'] and len(hooks) == 1
     assert options[0][1] == (999 if platform == 'win32' else desktop.socket.SO_REUSEADDR)
+
+
+@pytest.mark.parametrize('platform', ['linux', 'win32'])
+def test_app_owned_native_icons(monkeypatch, tmp_path, platform):
+    from pwaf_foundation import desktop
+    from pwaf_foundation.identity import DesktopIdentity
+
+    monkeypatch.setattr(desktop.sys, 'platform', platform)
+    monkeypatch.setattr(desktop.socket, 'SO_EXCLUSIVEADDRUSE', 0x4, raising=False)
+    monkeypatch.setattr(desktop.socket, 'socket', lambda *args: Listener())
+    monkeypatch.setattr(desktop, '_ready', lambda origin: True)
+    icons, callbacks, starts = [], [], []
+    monkeypatch.setattr(desktop, 'set_macos_app_icon', icons.append)
+    monkeypatch.setattr(desktop, 'set_windows_app_icon', lambda window, path: icons.append(path))
+
+    class Event:
+        def __iadd__(self, callback):
+            callbacks.append(callback)
+            return self
+
+    window = SimpleNamespace(events=SimpleNamespace(shown=Event()))
+
+    def start(**kwargs):
+        starts.append(kwargs)
+        for callback in callbacks:
+            callback()
+
+    gui = SimpleNamespace(create_window=lambda *a, **k: window, start=start)
+    config = RuntimeConfig(data_dir=tmp_path)
+    identity = DesktopIdentity('native-test', 'Native Test', tmp_path, 'custom')
+    launch_desktop(create_app(config), config, identity=identity, title=identity.name,
+                   webview_module=gui, server_factory=Server)
+    assert icons[0] == tmp_path / 'custom.png'
+    if platform == 'win32':
+        assert icons[-1] == tmp_path / 'custom.ico'
+        assert starts == [{}]
+    else:
+        assert starts == [{'icon': str(tmp_path / 'custom.png')}]

@@ -14,7 +14,7 @@ The brief records decisions; it does not automatically configure the application
 | Installation identity | Set a unique, stable `id` in `app/identity.json` before installing; retain it across upgrades |
 | Default display name | Subclass `FoundationSettings`, override `app_name` with its validation bounds, pass the schema to `create_app` |
 | API title | The application-owned FastAPI construction in `app/app.py` currently uses a fixed title |
-| Native window title | Pass `title="Your App"` to `launch_desktop` from `app/` |
+| Native name/window title | Set `name` in `app/identity.json`; prepare `DesktopIdentity` before GUI startup and pass it/title to `launch_desktop` |
 | Page/sidebar/header/footer text | Override application templates; the default layout is `pwaf_foundation/templates/base.html` |
 | Browser/mobile identity and icons | Follow [icon customization](icons.md#derived-application-customization), including manifest identity and colors |
 | Installer prompts and success text | Inspect `scripts/install_runtime.py` and wrapper scripts for user-facing PWAF wording |
@@ -117,9 +117,11 @@ Standard installs include pywebview. Browser-only installs use `--browser-only`
 [deployment](deployment.md), including the matching public origin/port. LAN password
 authentication remains optional. Desktop mode currently requires local mode.
 
-Finder `.app` bundles, Windows shortcuts, autostart, and system services are not
-created by the current installer. If required, record and implement them as explicit
-deliverables; an icon asset is not an application bundle. Customize installer-facing
+Desktop installs create per-user Finder apps, Linux/Raspberry Pi menu entries,
+and Windows Desktop/Start Menu shortcuts. Set native name/icon metadata in
+`app/identity.json`; see [native launchers](installation.md#native-launchers-and-application-name).
+Use `--no-shortcuts` / `-NoShortcuts` to omit them; browser-only installs skip them.
+Services and autostart require explicit implementation when requested. Customize
 branding without changing activation locks or data-preservation behavior.
 
 ## 6. Metadata, verification, and release
