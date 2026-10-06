@@ -19,6 +19,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from pwaf_foundation.config import RuntimeConfig
+from pwaf_foundation.identity import DesktopIdentity
 
 
 def launch_desktop(
@@ -29,6 +30,7 @@ def launch_desktop(
     server_factory=uvicorn.Server,
     startup_timeout: float = 15,
     title: str = "Python Web App",
+    identity: DesktopIdentity | None = None,
     confirm_exit: Callable[[], bool] | None = None,
     quit_message: str = "Stop running work and quit?",
 ) -> None:
@@ -102,8 +104,16 @@ def launch_desktop(
 
             watcher = threading.Thread(target=watch_server, name="pwaf-desktop-watch", daemon=True)
             watcher.start()
-            set_macos_app_icon()
-            webview_module.start()
+            if identity is None:
+                set_macos_app_icon()
+            else:
+                set_macos_app_icon(identity.icon("png"))
+            if identity is not None and sys.platform == "win32":
+                window.events.shown += lambda: set_windows_app_icon(window, identity.icon("ico"))
+            if identity is not None and sys.platform.startswith("linux"):
+                webview_module.start(icon=str(identity.icon("png")))
+            else:
+                webview_module.start()
         finally:
             server.should_exit = True
             worker.join(timeout=35)
@@ -123,7 +133,7 @@ def _ready(origin: str) -> bool:
         return False
 
 
-def set_macos_app_icon() -> None:
+def set_macos_app_icon(icon_path: Path | None = None) -> None:
     """Apply the bundled PWAF artwork to the running macOS Dock/app switcher."""
     if sys.platform != "darwin":
         return
@@ -132,7 +142,7 @@ def set_macos_app_icon() -> None:
         from PyObjCTools import AppHelper
 
         def apply_icon() -> None:
-            path = Path(__file__).parent / "static/icons/pwaf-desktop-icon.png"
+            path = icon_path or Path(__file__).parent / "static/icons/pwaf-desktop-icon.png"
             icon = NSImage.alloc().initWithContentsOfFile_(str(path))
             if icon is None:
                 logging.getLogger(__name__).warning("Could not load PWAF desktop icon")
@@ -142,6 +152,17 @@ def set_macos_app_icon() -> None:
         AppHelper.callAfter(apply_icon)
     except ImportError:
         logging.getLogger(__name__).warning("macOS icon support is unavailable")
+
+
+def set_windows_app_icon(window, icon_path: Path) -> None:
+    """Apply app-owned ICO artwork to the native WinForms window and taskbar."""
+    try:
+        from System.Drawing import Icon
+
+        # Retain the managed icon for the complete lifetime of the native window.
+        window.native.Icon = Icon(str(icon_path))
+    except (ImportError, AttributeError, OSError):
+        logging.getLogger(__name__).warning("Windows native icon support is unavailable")
 
 
 def install_quit_handler(window, server, worker, confirm_exit, title, message) -> None:

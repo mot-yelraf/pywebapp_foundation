@@ -33,6 +33,10 @@ def main() -> int:
             "Usage: run [--desktop | --browser-only]; configure using PWAF_* variables"
         )
     desktop = activation.get("desktop", False) if not args else args == ["--desktop"]
+    if os.name == "nt" and desktop:
+        pythonw = python.with_name("pythonw.exe")
+        if pythonw.is_file():
+            python = pythonw
     env = dict(os.environ)
     env.setdefault("PWAF_DATA_DIR", str(root / "data"))
     command = [str(python), "-I", "-m", "app.desktop" if desktop else "app"]

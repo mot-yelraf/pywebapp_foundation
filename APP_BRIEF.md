@@ -5,7 +5,8 @@ This is a product brief, not runtime configuration. Bracketed values and uncheck
 items are undecided; agents must not invent them as approved requirements. Record
 reasonable implementation assumptions separately. Do not put credentials here.
 
-Installation identity: set a distinct stable `id` in `app/identity.json` before installing.
+Installation identity: set a distinct stable `id` and native display `name` in
+`app/identity.json` before installing; optional `icon_dir`/`icon_stem` select native artwork.
 Keep it unchanged across upgrades; never adopt another app’s installation.
 
 ## Purpose and audience
@@ -40,7 +41,8 @@ Keep it unchanged across upgrades; never adopt another app’s installation.
 - Installation destination convention: [separate app-owned folder]
 - Runtime data directory: [absolute installed path or per-installation data/]
 - Required native tools/system packages: [names and discovery/failure behavior]
-- Shortcuts, app bundles, or autostart: [none or explicit requirements]
+- Native launchers: [default per-user desktop launchers, or opt out with --no-shortcuts]
+- Services or autostart: [none or explicit requirements]
 
 ## Inputs, settings, and data
 

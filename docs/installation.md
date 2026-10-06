@@ -51,7 +51,9 @@ data/                   Settings and SQLite state, created by the runtime
 .pwaf-install           JSON format version and stable application identifier
 ```
 
-Run the printed `run.sh` or `run.ps1` path. Runtime configuration comes from the
+Desktop installs also create a per-user click-to-launch app/menu icon; see
+[native launchers](#native-launchers-and-application-name). Run the printed `run.sh`
+or `run.ps1` path. Runtime configuration comes from the
 same `PWAF_*` variables as source operation. `PWAF_DATA_DIR` defaults to the
 installation's absolute data path unless you explicitly override it. Launchers
 use the base Python interpreter used during installation; keep that interpreter
@@ -100,8 +102,12 @@ release; verify settings and history before resuming work. If you override
 
 To uninstall, stop all application/proxy processes, retain any desired data backup,
 then remove the chosen installation directory through your file manager. The
-installer creates no system services or autostart entries, so there are none to
-unregister. Caddy, Python, and any manually installed certificates are separately
+installer records created launcher paths in `native-launchers.json`. Remove
+those Finder/menu/shortcut entries too, after confirming they still target this
+installation. macOS runtime identity bundles live under
+`~/Library/Application Support/PWAF/<application-id>/`; remove only this app’s
+identity directory if it is no longer used by another installation/source checkout.
+The installer creates no system services or autostart entries. Caddy, Python, and any manually installed certificates are separately
 managed by the operator.
 
 ## Desktop window and browser access
@@ -151,7 +157,8 @@ doubles and a configured CI matrix are not evidence of a native run.
 
 ## Installation identity
 
-`app/identity.json` contains `{"id": "pywebapp-foundation"}`. Derived applications
+`app/identity.json` contains
+`{"id": "pywebapp-foundation", "name": "Python Web App"}`. Derived applications
 must choose their own stable identifier before their first installation, using
 1–128 lowercase letters, digits, dots, underscores, or hyphens, beginning with a
 letter or digit. This file is included in the application package. Display names,
@@ -175,3 +182,90 @@ known mismatch. The marker is assigned under the install lock before preparation
 if dependency installation fails, the assigned identity remains, while activation
 and user data remain unchanged. Retry normally with the same application identity.
 Never use adoption to turn one application’s installation into another application.
+
+
+## Native launchers and application name
+
+Desktop installation creates launchers for the current user:
+
+- macOS: `~/Applications/<name>.app`, with ICNS artwork and a universal ARM64/x86_64
+  native launcher. It starts `run.sh --desktop` and records startup output at
+  `<installation>/data/desktop-launch.log`. The installer applies an ad-hoc local
+  signature and refreshes LaunchServices; this is not notarized distribution.
+- Linux/Raspberry Pi: `<XDG_DATA_HOME>/applications/<native-id>.desktop`, defaulting
+  to `~/.local/share/applications`, with a matching hicolor PNG icon.
+- Windows: `<Desktop>/<name>.lnk` and `<Programs>/<native-id>/<name>.lnk`, targeting
+  the stable `launch.py` selector with `--desktop`. Shortcut and process
+  AppUserModelIDs match. `pythonw.exe` is used when available to avoid a console.
+
+Launchers reference the installation root, so upgrades select the new release
+without tying shortcuts to a discarded virtual environment or the source checkout.
+Icons are copied to `<installation>/native-icons/`. Existing launchers from a
+separate installation or unrelated bundle are rejected rather than overwritten.
+One app identity/name has one per-user launcher set; use `--no-shortcuts` for an
+additional installation. Renaming the display name creates new paths; manually
+remove the previous entries after checking their targets. Browser-only upgrades
+leave existing shortcuts in place; those explicitly request desktop mode, so
+remove them if desktop support is no longer installed.
+
+Use `--no-shortcuts` (`-NoShortcuts` in PowerShell) to install desktop dependencies
+without writing per-user launcher entries. `--browser-only` automatically skips
+native launchers. Neither option deletes existing launchers. Launchers do not
+create system services, autostart, or native mobile applications.
+
+App-owned native branding is explicit in `app/identity.json`:
+
+```json
+{
+  "id": "your-app",
+  "name": "Your App",
+  "icon_dir": "static/icons",
+  "icon_stem": "your-app-desktop-icon"
+}
+```
+
+`name` defaults to `Python Web App` for older ID-only files. Use a nonempty name
+of at most 100 characters without control characters, path separators, Windows
+reserved filename characters/names (such as `CON`), or a trailing dot/space. `icon_dir` is relative to
+the application package and must stay inside it. Supply matching `.png`, `.ico`,
+and `.icns` files. Omit icon fields to use the foundation's generated artwork.
+Nested application static assets are included by the default package-data rules.
+The native ID is `org.pwaf.app_` plus the first 32 hex characters of the SHA-256
+of the stable app ID; display-name changes do not alter it. The installer loads
+metadata without running app services or reading saved settings.
+
+In the application-owned desktop entrypoint, prepare native identity before
+importing GUI libraries or creating resources:
+
+```python
+from pathlib import Path
+from pwaf_foundation.identity import DesktopIdentity
+from pwaf_foundation.launchers import prepare_desktop_identity
+from pwaf_foundation.desktop import launch_desktop
+
+identity = DesktopIdentity.load(Path(__file__).with_name("identity.json"))
+prepare_desktop_identity(identity, module="app.desktop")
+launch_desktop(create_my_app(config), config, title=identity.name, identity=identity)
+```
+
+On macOS this re-executes the current interpreter through a named app bundle,
+retaining virtual-environment ownership, isolated-import mode, arguments, and
+runtime environment. This gives the running menu/Dock app its product name rather
+than `Python`. Linux sets GLib application name/program ID before GTK starts, or Qt application
+name/display name/desktop file ID when Qt is installed;
+Windows sets the process AppUserModelID and native window icon. Frozen macOS apps
+supply their own bundle identity. Callers using `launch_desktop` directly should
+perform this preparation in their own entrypoint. Editable `settings.app_name`,
+web page titles, manifest names, and distribution metadata remain separate
+branding choices; changing a default never rewrites saved preferences.
+
+`PWAF_DESKTOP_IDENTITY` is an internal macOS re-exec marker set by the launcher,
+not a user configuration option. It prevents recursive re-launch and must not be
+set manually. Rebuild the bundled native launcher on macOS with Command Line
+Tools using `bash scripts/build_macos_launcher.sh` after changing its C source.
+The executable is included in wheel/source-distribution package data.
+
+
+Platform contracts: [Apple bundle keys](https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html),
+[freedesktop desktop entries](https://specifications.freedesktop.org/desktop-entry/latest-single/),
+and [Windows AppUserModelIDs](https://learn.microsoft.com/en-us/windows/win32/shell/appids).

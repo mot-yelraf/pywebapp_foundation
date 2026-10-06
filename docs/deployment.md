@@ -133,6 +133,7 @@ Public internet deployment is outside this foundation's verified scope.
 | `PWAF_HTTP_HOST` | `127.0.0.1`; `0.0.0.0` for direct LAN | IP or `localhost`; local/proxy mode requires loopback. |
 | `PWAF_HTTP_PORT` | `8191` | Integer 1–65535. |
 | `PWAF_PUBLIC_ORIGIN` | unset | Required for LAN; exact HTTP origin for direct LAN or HTTPS origin for proxy mode, without path/query/credentials. Direct origin port must equal server port. |
+| `PWAF_DESKTOP_IDENTITY` | unset | Internal macOS native-identity re-exec marker; launcher-owned, do not set manually. |
 | `PWAF_DATA_DIR` | `./data` | Resolved against startup working directory; installed launchers default to their root's `data/`. |
 | `PWAF_LOG_LEVEL` | `INFO` | DEBUG, INFO, WARNING, ERROR, CRITICAL. |
 | `PWAF_PROXY_TOKEN_FILE` | unset | Required only for proxy mode; file containing 64 lowercase hex characters. |
@@ -146,3 +147,10 @@ configuration. Startup variables are not written to editable settings JSON.
 The Caddyfile additionally consumes `PWAF_PROXY_TOKEN`, `PWAF_OPERATOR_HASH`, and
 `PWAF_VIEWER_HASH` with no defaults. These are proxy-process inputs only; FastAPI
 does not read them. Keep the token and hashes out of logs and committed files.
+
+
+Desktop deployments include [per-user app launchers](installation.md#native-launchers-and-application-name)
+by default. Headless/LAN deployments use `--browser-only` / `-BrowserOnly`, which
+skips native launchers and GUI dependencies. `--no-shortcuts` / `-NoShortcuts`
+keeps desktop support without registering launchers. None of these installs
+create a service or autostart registration.

@@ -14,6 +14,13 @@ from scripts.install_runtime import install
 SOURCE = Path(__file__).resolve().parents[1]
 
 
+@pytest.fixture(autouse=True)
+def isolated_launchers(monkeypatch):
+    """Installer doubles must never create real per-user shortcuts."""
+    monkeypatch.setattr("scripts.install_runtime.install_launchers", lambda *args: [])
+
+
+
 def test_upgrade_preserves_data_and_failed_activation(tmp_path, monkeypatch):
     root = tmp_path / "installed app"
     monkeypatch.setattr(
@@ -237,3 +244,43 @@ def test_legacy_cli_requires_destination(monkeypatch):
     monkeypatch.setattr(install_runtime.sys, 'argv', ['install', '--adopt-legacy-install'])
     with pytest.raises(SystemExit, match='explicit --destination'):
         install_runtime.main()
+
+
+@pytest.mark.parametrize('desktop,shortcuts,expected', [
+    (True, True, 1), (True, False, 0), (False, True, 0),
+])
+def test_native_launcher_install_modes(tmp_path, monkeypatch, desktop, shortcuts, expected):
+    from scripts import install_runtime as installer
+
+    monkeypatch.setattr(installer.venv.EnvBuilder, 'create', lambda self, path: path.mkdir())
+    monkeypatch.setattr(installer.subprocess, 'run', lambda *a, **k: None)
+    calls = []
+    monkeypatch.setattr(installer, 'install_launchers', lambda *a: calls.append(a))
+    root = tmp_path / 'installed'
+    installer.install(SOURCE, root, desktop=desktop, shortcuts=shortcuts)
+    assert len(calls) == expected
+    if expected:
+        assert calls[0][0] == root
+        assert calls[0][1].name == 'Python Web App'
+
+
+def test_native_launcher_failure_preserves_activation_and_data(tmp_path, monkeypatch):
+    from scripts import install_runtime as installer
+
+    monkeypatch.setattr(installer.venv.EnvBuilder, 'create', lambda self, path: path.mkdir())
+    monkeypatch.setattr(installer.subprocess, 'run', lambda *a, **k: None)
+    root = tmp_path / 'installed'
+    installer.install(SOURCE, root, desktop=False)
+    active = (root / 'active.json').read_bytes()
+    (root / 'data').mkdir()
+    settings = root / 'data/settings.json'
+    settings.write_text('{"app_name":"Keep me"}')
+
+    def fail(*args):
+        raise OSError('Shortcut creation failed')
+
+    monkeypatch.setattr(installer, 'install_launchers', fail)
+    with pytest.raises(OSError, match='Shortcut'):
+        installer.install(SOURCE, root)
+    assert (root / 'active.json').read_bytes() == active
+    assert settings.read_text() == '{"app_name":"Keep me"}'

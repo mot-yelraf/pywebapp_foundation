@@ -131,8 +131,9 @@ to add ping functionality to the shared foundation itself.
 - Keep each app's installation, runtime data, and simultaneous-listening port
   separate. Check inherited environment overrides when validating installed apps.
   Changes to defaults must not rewrite existing preferences or select another
-  app's server/data. The standard installer does not create native app bundles,
-  shortcuts, services, or autostart; implement these only when the brief requires.
+  app's server/data. Desktop installs create per-user native app bundles/menu entries/shortcuts
+  by default; `--no-shortcuts` / `-NoShortcuts` skips them. Browser-only installs
+  skip them. Services and autostart still require explicit application requirements.
 - Audit distribution metadata, support links, attribution, licensing decisions,
   and release notes without inventing ownership or permissions. Preserve inherited
   notices. Document unresolved release decisions rather than silently choosing them.
@@ -168,10 +169,11 @@ to add ping functionality to the shared foundation itself.
   in unrelated package names, installer markers, or configuration contracts.
 - Application-owned assets are also possible through `UIConfig.static_dir` and
   `template_dir`. Ensure nested icon files and manifests are included by packaging.
-  The current desktop icon loader uses a fixed foundation asset path; there is no
-  `UIConfig` desktop-icon option. If app-owned native icons are required, implement
-  a generic optional icon-path argument and pass it from the application, preserving
-  the default. Do not document an override as implemented until it exists.
+  Set `name`, `icon_dir`, and `icon_stem` in `app/identity.json` for app-owned
+  native branding. Load `DesktopIdentity` in the desktop entrypoint, call
+  `prepare_desktop_identity` before GUI imports/resource startup, and pass
+  `identity` and `title=identity.name` to `launch_desktop`. This is independent of
+  `UIConfig`; omitted identity preserves the foundation icon default.
 - Verify icon tests, package contents, and changed browser/native surfaces. Inspect
   small-size legibility, transparent desktop corners, opaque mobile variants, and
   masks. Record native/mobile targets not actually tested. ICNS/ICO/catalog assets
@@ -282,6 +284,7 @@ configuration is separate from editable settings; no fields currently overlap.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
+| `PWAF_DESKTOP_IDENTITY` | unset | Internal macOS identity re-exec marker; launcher-owned, not user configuration. |
 | `PWAF_HTTP_HOST` | `127.0.0.1`; `0.0.0.0` for direct LAN | IP or localhost; local/proxy modes require loopback. |
 | `PWAF_HTTP_PORT` | `8191` | Integer from 1 through 65535. |
 | `PWAF_DATA_DIR` | `./data` | Relative to startup directory; installed launchers use their absolute data path. |

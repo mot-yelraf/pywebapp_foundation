@@ -219,3 +219,49 @@ PowerShell GUI lifecycle. Other-device LAN routing, local firewalls, and client 
 trust must be checked on the intended network. No internet-facing deployment is
 claimed. These are explicit environment limits, not optional components silently
 being treated as verified.
+
+
+## Native launcher integration — 2026-10-06
+
+On macOS ARM64/Python 3.13, the launcher change was checked with:
+
+- The full warning-strict test suite: **171 passed**, **97.29% coverage**
+  (95% gate), plus Ruff, compileall, and shell syntax checks. Platform artifact and
+  adapter tests use isolated paths and doubles for Windows/Linux behavior.
+- A universal ARM64/x86_64 Mach-O build, wheel/source-distribution build, and
+  package-content inspection for identity metadata, native artwork, launcher
+  binary, editable C source, and its rebuild script.
+- Real browser-only clean install/reinstall using `scripts/verify_install.py`,
+  including source-independent startup and preservation of saved settings,
+  unknown settings fields, and SQLite results.
+- A real desktop install/reinstall under `/tmp` with `--no-shortcuts`; a native
+  window loaded using the installed interpreter with `-I` from `/tmp`. The check
+  asserted the original virtual-environment prefix, bundle display name, and
+  native About-menu product name, plus browser HTTP access and coordinated exit.
+- A generated Finder bundle under a temporary directory: its signed native
+  launcher ran the installed native verification through a stable runtime script.
+  No existing user Applications bundle, installation, or saved app data was replaced.
+
+Reproduce the source native-name check in an active macOS graphical session:
+
+```sh
+python -m scripts.verify_desktop --identity \
+  --identity-home /tmp/pwaf-native-check --expected-prefix "$PWD/.venv"
+```
+
+For an installed release, invoke its `.venv/bin/python -I` with the absolute path
+of `scripts/verify_desktop.py`, `--installed --identity`, an isolated
+`--identity-home`, and `--expected-prefix` pointing to that release's `.venv`.
+The verification script is a harness; it does not put repository imports on the
+installed interpreter's path.
+
+Actual Windows Start Menu/Desktop COM shortcuts, WebView2 taskbar behavior,
+Linux GTK/Qt menu/Wayland identity, physical Raspberry Pi behavior, and macOS
+Intel execution remain unverified on those native targets. The universal binary
+and mocked cross-platform tests do not establish native success there.
+
+PR CI exposed Windows rooted/drive-relative icon paths escaping the intended
+relative-path contract. These now fail validation on every host, with four added
+regression cases. The updated local suite passes **175 tests**, with **97.29%
+coverage** and Ruff passing. Remote matrix results are separate from native GUI
+verification.

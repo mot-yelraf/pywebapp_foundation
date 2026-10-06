@@ -49,11 +49,13 @@ git remote rename origin upstream
 git switch -c build-pingtest
 ```
 
-Set `app/identity.json` to `{"id": "pingtest"}` before installing your derived app.
+Set `app/identity.json` to `{"id": "pingtest", "name": "PingTest"}` before
+installing your derived app.
 Keep that identifier stable across upgrades; the installer rejects other apps’ destinations.
 
 The folder is now `PingTest`; this does not change the UI name, Python distribution
-name, or native window title. Those are separate branding steps for the agent.
+name, or native window title. Set native `name` and optional icon metadata in
+`app/identity.json`; keep the other branding steps explicit.
 To start from a local repository instead, use its path as the clone source. Git
 copies committed files only: commit the intended foundation snapshot first. A
 clone does not include uncommitted implementation files, `.venv`, or runtime data.
@@ -336,3 +338,11 @@ schemas are reset by this change.
 
 The project uses the [BSD 2-Clause license](LICENSE); preserve its copyright and
 [third-party notices](THIRD_PARTY_NOTICES.md) when redistributing derived apps.
+
+
+Desktop installs now provide per-user macOS Finder apps, Linux/Raspberry Pi menu
+entries, and Windows Desktop/Start Menu shortcuts. Set the native product name
+and icons in `app/identity.json`; the desktop entrypoint establishes that identity
+so the macOS app menu uses the product name instead of Python. Browser-only
+installs skip native launchers; `--no-shortcuts` / `-NoShortcuts` opts out while
+keeping desktop support. See [native launcher configuration](docs/installation.md#native-launchers-and-application-name).
