@@ -259,3 +259,9 @@ Actual Windows Start Menu/Desktop COM shortcuts, WebView2 taskbar behavior,
 Linux GTK/Qt menu/Wayland identity, physical Raspberry Pi behavior, and macOS
 Intel execution remain unverified on those native targets. The universal binary
 and mocked cross-platform tests do not establish native success there.
+
+PR CI exposed Windows rooted/drive-relative icon paths escaping the intended
+relative-path contract. These now fail validation on every host, with four added
+regression cases. The updated local suite passes **175 tests**, with **97.29%
+coverage** and Ruff passing. Remote matrix results are separate from native GUI
+verification.

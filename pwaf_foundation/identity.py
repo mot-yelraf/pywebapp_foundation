@@ -8,7 +8,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 
 @dataclass(frozen=True)
@@ -54,7 +54,9 @@ class DesktopIdentity:
             options = {}
             if "icon_dir" in value:
                 relative = Path(value["icon_dir"])
-                if relative.is_absolute() or ".." in relative.parts:
+                windows = PureWindowsPath(value["icon_dir"])
+                if (relative.anchor or windows.anchor
+                        or ".." in relative.parts or ".." in windows.parts):
                     raise ValueError("icon_dir must be inside the application package")
                 options["icon_dir"] = path.parent / relative
             return cls(value["id"], value.get("name", "Python Web App"),

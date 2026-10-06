@@ -40,6 +40,10 @@ def test_identity_metadata(tmp_path, document):
     [], {}, {'id': 42}, {'id': '../app'}, {'id': 'app', 'name': '\nBad'},
     {'id': 'app', 'name': '../Bad'}, {'id': 'app', 'name': ''},
     {'id': 'app', 'name': 42}, {'id': 'app', 'name': 'CON'}, {'id': 'app', 'icon_dir': '/absolute'},
+    {'id': 'app', 'icon_dir': 'C:/absolute'},
+    {'id': 'app', 'icon_dir': 'C:relative'},
+    {'id': 'app', 'icon_dir': r'\rooted'},
+    {'id': 'app', 'icon_dir': r'..\escape'},
     {'id': 'app', 'icon_dir': '../escape'}, {'id': 'app', 'icon_stem': '../bad'},
 ])
 def test_invalid_identity(tmp_path, document):
