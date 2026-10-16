@@ -321,3 +321,7 @@ Existing NetProf and other user installations were not upgraded or changed.
 PR validation exposed two host-dependent assertions in the new tests: POSIX
 separators in a simulated macOS executable path and Windows extended-length
 symlink targets. These now compare path identities rather than display spellings.
+The real Windows installation check also exposed a temporary-path alias in the
+verification harness: it now resolves the destination before comparing it with
+the installer's canonical launcher path. Package installation and disposable
+readiness had succeeded before that assertion failed.

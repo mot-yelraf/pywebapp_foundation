@@ -27,7 +27,7 @@ def main() -> None:
     args = parser.parse_args()
     source = Path(__file__).resolve().parents[1]
     with tempfile.TemporaryDirectory(prefix="pwaf-install-") as directory:
-        root = Path(directory) / "Installed App With Spaces"
+        root = Path(directory).resolve() / "Installed App With Spaces"
         command = [
             sys.executable,
             str(source / "scripts/install_runtime.py"),
