@@ -105,6 +105,7 @@ def test_macos_identity_reexec_preserves_venv_isolation_and_env(tmp_path, identi
     monkeypatch.setattr(launchers.sys, 'platform', 'darwin')
     monkeypatch.setattr(Path, 'home', lambda: tmp_path)
     monkeypatch.setattr(launchers.sys, 'executable', '/some/venv/bin/python')
+    monkeypatch.setattr(launchers.sys, 'base_prefix', str(tmp_path / 'non-framework-python'))
     monkeypatch.setattr(launchers.sys, 'flags', SimpleNamespace(isolated=True))
     monkeypatch.setattr(launchers.sys, 'argv', ['desktop', 'argument'])
     monkeypatch.delenv('PWAF_DESKTOP_IDENTITY', raising=False)
@@ -183,3 +184,23 @@ def test_qt_identity_without_glib(monkeypatch, identity):
                                        setDesktopFileName=names.append)))
     launchers.prepare_desktop_identity(identity, module='app.desktop')
     assert names == [identity.name, identity.name, identity.native_id]
+
+
+def test_macos_framework_reexec_uses_real_interpreter(tmp_path, identity, monkeypatch):
+    monkeypatch.setattr(launchers.sys, 'platform', 'darwin')
+    monkeypatch.setattr(launchers.sys, 'base_prefix', str(tmp_path / 'framework'))
+    monkeypatch.setattr(launchers.sys, 'executable', '/release/.venv/bin/python')
+    monkeypatch.setattr(launchers.sys, 'flags', SimpleNamespace(isolated=True))
+    monkeypatch.setattr(launchers.sys, 'argv', ['desktop'])
+    monkeypatch.delenv('PWAF_DESKTOP_IDENTITY', raising=False)
+    real_python = tmp_path / 'framework/Resources/Python.app/Contents/MacOS/Python'
+    real_python.parent.mkdir(parents=True)
+    real_python.touch()
+    calls = []
+    monkeypatch.setattr(launchers.os, 'execve', lambda *args: calls.append(args))
+    launchers.prepare_desktop_identity(
+        identity, module='app.desktop', bundle_root=tmp_path / 'bundles')
+    executable, command, env = calls[0]
+    assert executable.is_symlink() and executable.samefile(real_python)
+    assert env['__PYVENV_LAUNCHER__'] == '/release/.venv/bin/python'
+    assert command[1:] == ['-I', '-m', 'app.desktop']

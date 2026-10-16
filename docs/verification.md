@@ -265,3 +265,63 @@ relative-path contract. These now fail validation on every host, with four added
 regression cases. The updated local suite passes **175 tests**, with **97.29%
 coverage** and Ruff passing. Remote matrix results are separate from native GUI
 verification.
+
+## Release virtual environments and installer tools — 2026-10-15
+
+Version `v0.26.288.1` adds pip/uv selection and explicit runtime-interpreter
+selection. Each staged release receives a fresh `.venv`; dependency consistency
+and installed readiness must pass before activation. Generated run scripts and
+Windows shortcuts bootstrap the selector through the verified release environment.
+A Homebrew framework-interpreter relaunch fix preserves the environment in named
+macOS desktop bundles.
+
+Actual local checks on macOS ARM64:
+
+- Baseline installer/native-launcher tests: 56 passed before edits.
+- Full repository suite: 191 passed with warnings treated as errors on both the
+  existing Python 3.13.9 development environment and Homebrew Python 3.15.0.
+- Coverage reached 97.30%, above the 95% gate. Ruff, compileall, POSIX shell
+  syntax, and diff whitespace checks passed.
+- Real pip and uv browser-only clean install/reinstall checks used Homebrew
+  Python 3.15.0, disposable destinations with spaces, source-independent installed
+  startup, saved settings/unknown fields, and a persisted SQLite result.
+- Real uv desktop install/reinstall and native window verification passed with
+  Homebrew Python 3.15.0, including native product identity, environment-prefix
+  preservation, page load, HTTP access, window close, and server shutdown.
+- Failure regression tests cover dependency-check/readiness failures for both
+  tools, preserving existing activation, run scripts, and saved settings.
+
+Reproduce using a development environment with the relevant tools installed:
+
+```sh
+.venv/bin/python -m pytest -q -W error
+.venv/bin/ruff check .
+.venv/bin/python scripts/verify_install.py --installer pip
+.venv/bin/python scripts/verify_install.py --installer uv
+.venv/bin/python scripts/verify_install.py --installer uv --desktop
+# Full suite against Homebrew's installed default, using an isolated uv environment:
+uv run --no-project --no-python-downloads --python /opt/homebrew/opt/python/bin/python3 \
+  --with-requirements requirements-dev.txt python -m pytest -q -W error
+```
+
+`verify_install.py` also accepts `--python /path/to/python`. Its desktop check uses
+an isolated identity directory and skips per-user shortcut installation. The first
+sandboxed download attempt failed due to network restrictions; real installation
+checks succeeded with network access. macOS emitted a sandbox-extension diagnostic
+while opening the temporary named bundle, but the native assertions and shutdown
+completed successfully.
+
+Windows PowerShell execution/shortcuts, Linux/Raspberry Pi native installs, and
+macOS Intel remain unverified on actual target machines. Their selection/launcher
+contracts have unit coverage only. pip desktop installation was not repeated; the
+real desktop check used uv. Virtual environments continue to require their base
+Python installations, and no checks establish survival after those are removed.
+Existing NetProf and other user installations were not upgraded or changed.
+
+PR validation exposed two host-dependent assertions in the new tests: POSIX
+separators in a simulated macOS executable path and Windows extended-length
+symlink targets. These now compare path identities rather than display spellings.
+The real Windows installation check also exposed a temporary-path alias in the
+verification harness: it now resolves the destination before comparing it with
+the installer's canonical launcher path. Package installation and disposable
+readiness had succeeded before that assertion failed.

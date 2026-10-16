@@ -54,6 +54,38 @@ print(__version__)
 """
 
 
+def select_python(requested: str | None = None) -> Path:
+    """Find and validate a stable platform Python without downloading a runtime."""
+    candidate = requested
+    if candidate is None and sys.platform == "darwin" and shutil.which("brew"):
+        prefix = subprocess.run(
+            ["brew", "--prefix", "python"], check=True, capture_output=True, text=True
+        ).stdout.strip()
+        candidate = str(Path(prefix) / "bin/python3")
+    if candidate is None:
+        candidate = (
+            "/usr/bin/python3" if sys.platform.startswith("linux")
+            and Path("/usr/bin/python3").is_file() else sys._base_executable
+        )
+    executable = shutil.which(candidate)
+    if executable is None:
+        raise ValueError(f"Python executable not found: {candidate}. Use --python /path/to/python.")
+    result = subprocess.run(
+        [executable, "-I", "-c",
+         "import json,sys; print(json.dumps([sys.executable, list(sys.version_info)]))"],
+        check=True, capture_output=True, text=True,
+    )
+    try:
+        path, version = json.loads(result.stdout)
+        if version[0] != 3 or tuple(version[:2]) < (3, 10) or version[3] != "final":
+            raise ValueError("Installation requires a stable Python 3.10 or newer.")
+        python = Path(path).absolute()  # Do not resolve a venv's interpreter symlink.
+    except (TypeError, IndexError, json.JSONDecodeError) as exc:
+        raise ValueError("Could not identify the selected Python interpreter.") from exc
+    print(f"Selected Python {'.'.join(map(str, version[:3]))}: {python}", flush=True)
+    return python
+
+
 def select_destination() -> Path | None:
     """Open the platform folder chooser; return None when the user cancels."""
     title = "Choose an empty folder or an existing PWAF installation"
@@ -167,10 +199,18 @@ def validate_identity(marker: Path, identity: str, adopt_legacy: bool) -> None:
 
 def install(
     source: Path, destination: Path, *, desktop: bool = True,
-    adopt_legacy: bool = False, shortcuts: bool = True
+    adopt_legacy: bool = False, shortcuts: bool = True,
+    python: Path | None = None, installer: str = "pip",
 ) -> Path:
     """Build a verified release and switch activation while preserving installed data."""
     source, destination = source.resolve(), destination.expanduser().resolve()
+    if installer not in {"pip", "uv"}:
+        raise ValueError("Installer must be pip or uv")
+    uv = shutil.which("uv") if installer == "uv" else None
+    if installer == "uv" and uv is None:
+        raise ValueError(
+            "uv was selected but is not installed; install uv or choose --installer pip"
+        )
     if source == destination or source in destination.parents:
         raise ValueError("Installation destination must be outside the source checkout")
     if not (source / "pyproject.toml").is_file():
@@ -195,27 +235,49 @@ def install(
         release = destination / "releases" / uuid.uuid4().hex
         release.mkdir(parents=True)
         environment = release / ".venv"
-        venv.EnvBuilder(with_pip=True).create(environment)
+        if uv:
+            subprocess.run(
+                [uv, "venv", "--no-python-downloads", "--python",
+                 str(python or sys.executable), str(environment)], check=True,
+            )
+        elif python:
+            subprocess.run([str(python), "-m", "venv", str(environment)], check=True)
+        else:
+            venv.EnvBuilder(with_pip=True).create(environment)
         python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         package = str(source) + ("[desktop]" if desktop else "")
-        subprocess.run([str(python), "-m", "pip", "install", package], check=True)
+        if uv:
+            subprocess.run(
+                [uv, "pip", "install", "--no-python-downloads", "--python", str(python), package],
+                check=True,
+            )
+            subprocess.run([uv, "pip", "check", "--python", str(python)], check=True)
+        else:
+            subprocess.run([str(python), "-m", "pip", "install", package], check=True)
+            subprocess.run([str(python), "-m", "pip", "check"], check=True)
         # No migrations touch installed user data during preparation.
         with tempfile.TemporaryDirectory(prefix="pwaf-install-probe-") as scratch:
             subprocess.run([str(python), "-I", "-c", PROBE, scratch], check=True, cwd=release)
         launcher = (source / "scripts/runtime_launcher.py").read_text(encoding="utf-8")
         atomic_write(destination / "launch.py", launcher)
-        bootstrap = str(Path(sys._base_executable).resolve())
+        bootstrap = str(python)
         shell = (
             "#!/bin/sh\nset -eu\n"
             'PWAF_INSTALL_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\n'
-            f'exec {shlex.quote(bootstrap)} "$PWAF_INSTALL_ROOT/launch.py" "$@"\n'
+            f'if [ ! -x {shlex.quote(bootstrap)} ]; then\n'
+            '  echo "Installed Python is missing; rerun the installer for this destination." >&2\n'
+            '  exit 1\nfi\n'
+            f'exec {shlex.quote(bootstrap)} -I "$PWAF_INSTALL_ROOT/launch.py" "$@"\n'
         )
         atomic_write(destination / "run.sh", shell)
         (destination / "run.sh").chmod(0o755)
         powershell_python = bootstrap.replace("'", "''")
         atomic_write(
             destination / "run.ps1",
-            f"& '{powershell_python}' (Join-Path $PSScriptRoot 'launch.py') @args\n"
+            f"if (!(Test-Path -LiteralPath '{powershell_python}' -PathType Leaf)) {{\n"
+            "    throw 'Installed Python is missing; rerun the installer for this destination.'\n"
+            "}\n"
+            f"& '{powershell_python}' -I (Join-Path $PSScriptRoot 'launch.py') @args\n"
             "exit $LASTEXITCODE\n",
         )
         if desktop and shortcuts:
@@ -243,6 +305,10 @@ def main() -> None:
                       help="Omit desktop dependencies and launch only the web server")
     parser.add_argument("--no-shortcuts", action="store_true",
                         help="Skip per-user native launchers (desktop runtime still installed)")
+    parser.add_argument("--python",
+                        help="Python executable path or command; overrides platform default")
+    parser.add_argument("--installer", choices=("pip", "uv"), default="pip",
+                        help="Environment/package tool (default: pip); never downloads Python")
     parser.set_defaults(desktop=True)
     args = parser.parse_args()
     try:
@@ -253,9 +319,11 @@ def main() -> None:
             print("Installation cancelled; no installation changes made.")
             return
         destination = destination.expanduser().resolve()
+        python = select_python(args.python)
         release = install(
             Path(__file__).resolve().parents[1], destination, desktop=args.desktop,
-            adopt_legacy=args.adopt_legacy_install, shortcuts=not args.no_shortcuts
+            adopt_legacy=args.adopt_legacy_install, shortcuts=not args.no_shortcuts,
+            python=python, installer=args.installer,
         )
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         raise SystemExit(

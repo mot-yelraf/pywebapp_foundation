@@ -4,6 +4,7 @@ Downloads runtime dependencies into isolated virtual environments. No existing
 installation or user data is read or modified.
 """
 
+import argparse
 import json
 import os
 import socket
@@ -18,16 +19,26 @@ from pathlib import Path
 
 def main() -> None:
     """Install twice, seed real persisted state, and prove it survives activation."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--installer', choices=('pip', 'uv'), default='pip')
+    parser.add_argument('--python', help='Runtime interpreter; defaults to platform selection')
+    parser.add_argument('--desktop', action='store_true',
+                        help='Include desktop dependencies and a real native window check')
+    args = parser.parse_args()
     source = Path(__file__).resolve().parents[1]
     with tempfile.TemporaryDirectory(prefix="pwaf-install-") as directory:
-        root = Path(directory) / "Installed App With Spaces"
+        root = Path(directory).resolve() / "Installed App With Spaces"
         command = [
             sys.executable,
             str(source / "scripts/install_runtime.py"),
-            "--browser-only",
+            "--desktop" if args.desktop else "--browser-only",
+            "--no-shortcuts",
             "--destination",
             str(root),
+            '--installer', args.installer,
         ]
+        if args.python:
+            command += ['--python', args.python]
         subprocess.run(command, check=True)
         first = json.loads((root / "active.json").read_text())["release"]
         python = (
@@ -37,6 +48,7 @@ def main() -> None:
             / ".venv"
             / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         )
+        assert str(python) in (root / ('run.ps1' if os.name == 'nt' else 'run.sh')).read_text()
         seed = """
 import json
 from pathlib import Path
@@ -68,7 +80,7 @@ with database.transaction() as connection:
         env = {key: value for key, value in os.environ.items() if not key.startswith("PWAF_")}
         env["PWAF_HTTP_PORT"] = str(port)
         launch = (
-            [str(root / "run.sh")]
+            [str(root / "run.sh"), '--browser-only']
             if os.name != "nt"
             else [str(root / "releases" / second / ".venv/Scripts/python.exe"), "-m", "app"]
         )
@@ -103,11 +115,21 @@ with database.transaction() as connection:
                     process.kill()
                     process.wait()
         assert json.loads((root / "data/settings.json").read_text())["future"] == {"keep": True}
-        no_desktop = 'import importlib.util; assert importlib.util.find_spec("webview") is None'
-        subprocess.run([str(python), "-c", no_desktop], cwd=root, check=True)
+        if args.desktop:
+            current_python = root / 'releases' / second / '.venv' / (
+                'Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+            subprocess.run(
+                [str(current_python), '-I', str(source / 'scripts/verify_desktop.py'),
+                 '--installed', '--identity', '--identity-home', str(root / 'identity-check'),
+                 '--expected-prefix', str(current_python.parent.parent)],
+                cwd=root, check=True, timeout=90,
+            )
+        else:
+            no_desktop = 'import importlib.util; assert importlib.util.find_spec("webview") is None'
+            subprocess.run([str(python), "-c", no_desktop], cwd=root, check=True)
     print(
         "Real install/reinstall passed: paths with spaces, saved settings/results, "
-        "browser-only dependencies, startup."
+        "dependency mode, startup."
     )
 
 

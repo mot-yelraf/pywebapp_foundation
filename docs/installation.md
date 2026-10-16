@@ -2,7 +2,7 @@
 
 ## Standalone installation
 
-Python 3.10 or newer with `venv`/pip is required. Run from a source checkout or
+Stable Python 3.10 or newer is required to run the installer. Run from a source checkout or
 source archive. No administrator access is required by the installer.
 
 macOS, Linux, or Raspberry Pi:
@@ -40,13 +40,51 @@ For SSH, headless systems, or automated installation, supply `--destination`
 path rather than installing somewhere automatically. On Debian-derived systems,
 install the platform's Python `venv` package if ensurepip is unavailable.
 
+### Python selection and pip or uv
+
+The installer prints the runtime Python version and executable before preparing a
+release. Defaults are Homebrew's installed default `python` formula on macOS when
+Homebrew is on PATH; `/usr/bin/python3` on Linux/Raspberry Pi when present; otherwise
+the base interpreter running the installer. On Windows, the wrapper uses `py -3`
+when available, then `python`. Launcher configuration can affect that selection.
+Python 2, Python below 3.10, and prereleases are rejected. The installer does not
+install or upgrade Python itself: update Homebrew/Python Install Manager separately
+for the latest stable release, or retain the distribution-maintained Python on Linux.
+
+Use `--python` (`-Python` in PowerShell) to select an executable path or command
+explicitly, overriding those defaults. This is also useful when pyenv or another
+environment manager changes command lookup. The shell/PowerShell wrapper uses that
+interpreter to bootstrap the installer too. For example:
+
+```sh
+./install.sh --destination "$HOME/My Python App" --python /usr/bin/python3
+./install.sh --destination "$HOME/My Python App" --installer uv
+```
+
+```powershell
+.\install.ps1 -Destination "$env:LOCALAPPDATA\My Python App" -Installer uv -Python 'C:\Python315\python.exe'
+```
+
+`--installer pip` / `-Installer pip` is the default: the selected Python creates
+the release `.venv` with `venv`, then its own `python -m pip` installs and checks
+dependencies. Selecting `uv` uses an already-installed `uv` to create the environment
+and install/check packages against its interpreter explicitly. uv does not need pip
+inside the environment. Automatic Python downloads are disabled; choosing uv does
+not change the selected Python. A missing uv executable fails with instructions
+to install it or choose pip. Neither tool is required at application launch.
+
+Both paths check dependency consistency and installed browser-server readiness
+against disposable data before activation. These checks do not replace the app's
+test suite or native desktop/platform verification. Python/tool selection applies
+to this installation attempt; repeat overrides when upgrading.
+
 Each installation contains:
 
 ```text
 active.json             Selected release identifier
 launch.py               Standard-library release selector
 run.sh / run.ps1        Stable launchers
-releases/<id>/.venv/    Independent runtime and installed application package
+releases/<id>/.venv/    Isolated packages and release Python entrypoint
 data/                   Settings and SQLite state, created by the runtime
 .pwaf-install           JSON format version and stable application identifier
 ```
@@ -56,9 +94,18 @@ Desktop installs also create a per-user click-to-launch app/menu icon; see
 or `run.ps1` path. Runtime configuration comes from the
 same `PWAF_*` variables as source operation. `PWAF_DATA_DIR` defaults to the
 installation's absolute data path unless you explicitly override it. Launchers
-use the base Python interpreter used during installation; keep that interpreter
-installed. Do not move release virtual environments; reinstall at a new destination
-and restore data when relocating.
+use the newly prepared release's `.venv` interpreter to run `launch.py`, which then
+executes the release selected by `active.json`. This also applies to Windows native
+shortcuts. No shell activation is needed, and changing PATH does not change the
+running app's Python. Retain the launcher-bootstrap release even after manually
+rolling activation back to another release; launchers are refreshed on reinstall.
+
+A `.venv` still depends on its underlying Python installation: retain that Python
+as well. Homebrew upgrades/cleanup or an OS Python upgrade can invalidate an
+environment. Rerun the installer for the same destination to create and verify a
+fresh release; saved data is preserved. Retaining old releases alone cannot guarantee
+rollback if their underlying Python has been removed. Do not move release virtual
+environments; reinstall at a new destination and restore data when relocating.
 
 The installer refuses a nonempty unrecognized destination and refuses to install
 inside its own source checkout. It uses a lock to prevent concurrent installs.
@@ -198,8 +245,9 @@ Desktop installation creates launchers for the current user:
   the stable `launch.py` selector with `--desktop`. Shortcut and process
   AppUserModelIDs match. `pythonw.exe` is used when available to avoid a console.
 
-Launchers reference the installation root, so upgrades select the new release
-without tying shortcuts to a discarded virtual environment or the source checkout.
+Launchers reference the installation root and are refreshed during upgrades.
+Windows shortcuts use the newly verified release's `.venv` to bootstrap the stable
+selector; retain that environment as described above. No launcher needs the source checkout.
 Icons are copied to `<installation>/native-icons/`. Existing launchers from a
 separate installation or unrelated bundle are rejected rather than overwritten.
 One app identity/name has one per-user launcher set; use `--no-shortcuts` for an
