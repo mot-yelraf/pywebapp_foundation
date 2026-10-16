@@ -201,6 +201,6 @@ def test_macos_framework_reexec_uses_real_interpreter(tmp_path, identity, monkey
     launchers.prepare_desktop_identity(
         identity, module='app.desktop', bundle_root=tmp_path / 'bundles')
     executable, command, env = calls[0]
-    assert executable.readlink() == real_python
+    assert executable.is_symlink() and executable.samefile(real_python)
     assert env['__PYVENV_LAUNCHER__'] == '/release/.venv/bin/python'
     assert command[1:] == ['-I', '-m', 'app.desktop']

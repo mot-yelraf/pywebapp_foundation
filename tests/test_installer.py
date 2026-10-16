@@ -322,7 +322,7 @@ def test_platform_python_selection(monkeypatch, platform, requested, expected):
 
     monkeypatch.setattr(installer.subprocess, 'run', probe)
     assert installer.select_python(requested) == Path('/chosen/python').absolute()
-    assert commands[-1][0] == expected
+    assert Path(commands[-1][0]) == Path(expected)
     assert ('brew' in commands[0]) is (platform == 'darwin' and requested is None)
 
 

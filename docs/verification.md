@@ -317,3 +317,7 @@ contracts have unit coverage only. pip desktop installation was not repeated; th
 real desktop check used uv. Virtual environments continue to require their base
 Python installations, and no checks establish survival after those are removed.
 Existing NetProf and other user installations were not upgraded or changed.
+
+PR validation exposed two host-dependent assertions in the new tests: POSIX
+separators in a simulated macOS executable path and Windows extended-length
+symlink targets. These now compare path identities rather than display spellings.
