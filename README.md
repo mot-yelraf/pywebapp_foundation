@@ -191,6 +191,15 @@ for browser access. Use `--browser-only` (`-BrowserOnly` on the Windows installe
 for a headless installation. See [installation and upgrades](docs/installation.md)
 for destinations, launchers, backups, restoration, and uninstall behavior.
 
+Installers create a fresh `.venv` for each release. Choose pip (default) or an
+already-installed uv with `--installer uv` (`-Installer uv` on Windows), and select
+an interpreter with `--python /path/to/python` (`-Python` on Windows). macOS prefers
+Homebrew's installed default Python; Linux/Raspberry Pi prefers the OS Python;
+Windows uses the Python launcher when available. Stable Python 3.10+ is required.
+Python itself is not downloaded or upgraded. Installed launchers use release
+`.venv` interpreters directly; pip/uv and shell activation are unnecessary at runtime.
+See [Python selection](docs/installation.md#python-selection-and-pip-or-uv) for details.
+
 ## Configuration
 
 | Variable | Default | Behavior |

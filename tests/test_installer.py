@@ -262,6 +262,7 @@ def test_native_launcher_install_modes(tmp_path, monkeypatch, desktop, shortcuts
     if expected:
         assert calls[0][0] == root
         assert calls[0][1].name == 'Python Web App'
+        assert '.venv' in calls[0][2].parts
 
 
 def test_native_launcher_failure_preserves_activation_and_data(tmp_path, monkeypatch):
@@ -284,3 +285,127 @@ def test_native_launcher_failure_preserves_activation_and_data(tmp_path, monkeyp
         installer.install(SOURCE, root)
     assert (root / 'active.json').read_bytes() == active
     assert settings.read_text() == '{"app_name":"Keep me"}'
+
+
+@pytest.mark.parametrize('version', [(2, 7, 18, 'final', 0), (3, 9, 0, 'final', 0),
+                                     (3, 16, 0, 'alpha', 1)])
+def test_python_selection_rejects_unsupported_versions(monkeypatch, version):
+    from scripts import install_runtime as installer
+
+    monkeypatch.setattr(installer.shutil, 'which', lambda value: '/chosen/python')
+    monkeypatch.setattr(installer.subprocess, 'run', lambda *a, **kw:
+                        subprocess.CompletedProcess(
+                            a[0], 0, json.dumps(['/chosen/python', version])))
+    with pytest.raises(ValueError, match='stable Python 3.10'):
+        installer.select_python('chosen')
+
+
+@pytest.mark.parametrize('platform,requested,expected', [
+    ('darwin', None, '/brew/opt/python/bin/python3'),
+    ('linux', None, '/usr/bin/python3'),
+    ('darwin', '/explicit/python', '/explicit/python'),
+    ('win32', 'custom-python', 'custom-python'),
+])
+def test_platform_python_selection(monkeypatch, platform, requested, expected):
+    from scripts import install_runtime as installer
+
+    monkeypatch.setattr(installer.sys, 'platform', platform)
+    monkeypatch.setattr(installer.shutil, 'which', lambda value: value)
+    monkeypatch.setattr(Path, 'is_file', lambda self: True)
+    commands = []
+
+    def probe(command, **kw):
+        commands.append(command)
+        output = '/brew/opt/python\n' if command[0] == 'brew' else json.dumps(
+            ['/chosen/python', [3, 15, 0, 'final', 0]])
+        return subprocess.CompletedProcess(command, 0, output)
+
+    monkeypatch.setattr(installer.subprocess, 'run', probe)
+    assert installer.select_python(requested) == Path('/chosen/python').absolute()
+    assert commands[-1][0] == expected
+    assert ('brew' in commands[0]) is (platform == 'darwin' and requested is None)
+
+
+def test_missing_python_and_uv_leave_destination_untouched(tmp_path, monkeypatch):
+    from scripts import install_runtime as installer
+
+    monkeypatch.setattr(installer.shutil, 'which', lambda value: None)
+    with pytest.raises(ValueError, match='Python executable not found'):
+        installer.select_python('missing')
+    root = tmp_path / 'not-created'
+    with pytest.raises(ValueError, match='uv was selected'):
+        installer.install(SOURCE, root, installer='uv')
+    assert not root.exists()
+
+
+@pytest.mark.parametrize('tool', ['pip', 'uv'])
+def test_explicit_python_and_environment_commands(tmp_path, monkeypatch, tool):
+    from scripts import install_runtime as installer
+
+    root = tmp_path / 'Installed App'
+    commands = []
+    monkeypatch.setattr(installer.shutil, 'which', lambda value: '/tools/uv')
+    monkeypatch.setattr(installer.subprocess, 'run', lambda command, **kw: commands.append(command))
+    selected = Path('/selected/python')
+    release = installer.install(SOURCE, root, python=selected, installer=tool)
+    python = release / '.venv' / (
+        'Scripts/python.exe' if installer.os.name == 'nt' else 'bin/python')
+    if tool == 'pip':
+        assert commands[0][:3] == [str(selected), '-m', 'venv']
+        assert commands[1][:4] == [str(python), '-m', 'pip', 'install']
+        assert commands[2] == [str(python), '-m', 'pip', 'check']
+    else:
+        assert commands[0] == ['/tools/uv', 'venv', '--no-python-downloads',
+                               '--python', str(selected), str(release / '.venv')]
+        assert commands[1][:6] == ['/tools/uv', 'pip', 'install', '--no-python-downloads',
+                                  '--python', str(python)]
+        assert commands[2] == ['/tools/uv', 'pip', 'check', '--python', str(python)]
+    assert str(python) in (root / 'run.sh').read_text()
+    assert str(python) in (root / 'run.ps1').read_text()
+    assert str(selected) not in (root / 'run.sh').read_text()
+
+
+def test_shell_wrapper_preserves_arguments_with_explicit_python(tmp_path):
+    import os
+
+    if os.name == 'nt':
+        pytest.skip('POSIX wrapper')
+    import sys
+
+    # --help performs no install; a space-containing interpreter path exercises quoting.
+    executable = tmp_path / 'Python With Spaces'
+    executable.symlink_to(sys.executable)
+    result = subprocess.run(
+        [str(SOURCE / 'install.sh'), '--destination', str(tmp_path / 'unused'),
+         '--python', str(executable), '--installer', 'uv', '--help'],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert '--installer' in result.stdout and not (tmp_path / 'unused').exists()
+
+
+@pytest.mark.parametrize('tool', ['pip', 'uv'])
+@pytest.mark.parametrize('stage', ['check', 'readiness'])
+def test_failed_verification_preserves_installed_launchers(tmp_path, monkeypatch, tool, stage):
+    from scripts import install_runtime as installer
+
+    monkeypatch.setattr(installer.venv.EnvBuilder, 'create', lambda self, path: path.mkdir())
+    monkeypatch.setattr(installer.shutil, 'which', lambda value: '/tools/uv')
+    monkeypatch.setattr(installer.subprocess, 'run', lambda *a, **kw: None)
+    root = tmp_path / 'installed'
+    installer.install(SOURCE, root)
+    (root / 'data').mkdir()
+    (root / 'data/settings.json').write_text('{"app_name":"Preserve"}')
+    names = ['active.json', 'run.sh', 'run.ps1', 'launch.py', 'data/settings.json']
+    before = {name: (root / name).read_bytes() for name in names}
+
+    def fail_verification(command, **kwargs):
+        if (stage == 'check' and 'check' in command) or (
+                stage == 'readiness' and installer.PROBE in command):
+            raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(installer.subprocess, 'run', fail_verification)
+    with pytest.raises(subprocess.CalledProcessError):
+        installer.install(SOURCE, root, installer=tool)
+    assert {name: (root / name).read_bytes() for name in names} == before
+    assert not (root / '.install-lock').exists()

@@ -222,6 +222,12 @@ implemented. Do not report an unavailable platform check as successfully verifie
   `--browser-only` / `-BrowserOnly` available for headless installs; the desktop
   server also serves browser clients while the window is open.
 - Standalone install: `./install.sh` or `install.ps1`; see `docs/installation.md`.
+  Installers accept `--installer pip|uv` / `-Installer pip|uv` (pip by default) and
+  `--python` / `-Python` executable overrides. uv must already be installed; neither
+  path downloads Python. Preserve OS Python defaults on Linux/Raspberry Pi and
+  Homebrew's installed default on macOS. Each release owns its `.venv`; generated
+  launchers bootstrap through a verified release environment, not the installer's
+  base interpreter. Retain that environment and its underlying Python for rollback.
   Open a native folder picker when no destination is supplied; explicit destination
   arguments support headless installs. Cancellation must not start installation.
 - Default UI: `http://127.0.0.1:8191`; readiness: `/healthz`.

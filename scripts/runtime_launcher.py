@@ -25,8 +25,11 @@ def main() -> int:
         python = release / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         if not python.is_file():
             raise ValueError("Selected release Python is missing")
-    except (OSError, ValueError, KeyError) as exc:
-        raise SystemExit("Installation is incomplete; rerun the installer") from exc
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise SystemExit(
+            "Installation or selected Python is incomplete; "
+            "rerun the installer for this destination"
+        ) from exc
     args = sys.argv[1:]
     if args not in ([], ["--desktop"], ["--browser-only"]):
         raise SystemExit(

@@ -177,7 +177,7 @@ foreach ($folder in $folders) {
         throw 'Shortcut belongs to another installation'
     }
     $link.TargetPath = $m.python
-    $link.Arguments = '"' + (Join-Path $m.root 'launch.py') + '" --desktop'
+    $link.Arguments = '-I "' + (Join-Path $m.root 'launch.py') + '" --desktop'
     $link.WorkingDirectory = $m.root
     $link.IconLocation = $m.icon + ',0'
     $link.Description = $m.name
@@ -236,7 +236,14 @@ def prepare_desktop_identity(
         executable = _bundle(bundle, identity, str(sys.executable), launcher=False)
         temporary = executable.with_name(".python-link")
         temporary.unlink(missing_ok=True)
-        temporary.symlink_to(sys.executable)
+        # Framework builds (including Homebrew) use a small executable that
+        # launches Python.app and overwrites __PYVENV_LAUNCHER__. Enter the actual
+        # interpreter directly so our venv hint survives the named-bundle relaunch.
+        framework_python = (
+            Path(sys.base_prefix) / "Resources/Python.app/Contents/MacOS/Python"
+        )
+        target_python = framework_python if framework_python.is_file() else Path(sys.executable)
+        temporary.symlink_to(target_python)
         temporary.replace(executable)
         environment = dict(os.environ, PWAF_DESKTOP_IDENTITY=identity.native_id)
         # CPython otherwise searches beside the bundle link and loses a copied
