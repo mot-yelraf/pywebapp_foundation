@@ -355,3 +355,8 @@ and icons in `app/identity.json`; the desktop entrypoint establishes that identi
 so the macOS app menu uses the product name instead of Python. Browser-only
 installs skip native launchers; `--no-shortcuts` / `-NoShortcuts` opts out while
 keeping desktop support. See [native launcher configuration](docs/installation.md#native-launchers-and-application-name).
+
+## Attribution
+
+- System Architecture: TW Farley
+- Implementation and Coding: TW Farley and ChatGPT/Codex
