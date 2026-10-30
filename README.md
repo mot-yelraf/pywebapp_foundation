@@ -1,7 +1,7 @@
 # pywebapp_foundation
 
-A browser-first Python foundation for adding a web interface to existing tools.
-Reusable infrastructure lives in `pwaf_foundation/`; replaceable application composition
+A foundation/framework for makers, students, educators that want to have a straight-forward,
+clean user interface for their python applications. A Python web user interface foundation for adding a web interface to existing tools. Reusable infrastructure lives in `pwaf_foundation/`; replaceable application composition
 lives in `app/`. Python 3.10 or newer is required.
 
 The foundation includes a responsive UI, JSON settings, SQLite migrations,
