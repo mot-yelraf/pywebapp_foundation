@@ -17,6 +17,15 @@ After the change, installing `requirements-dev.txt` replaces pytest 9.2.0 with
 compileall, and Git whitespace checks pass. These are local results; the PR's
 GitHub Actions matrix verifies fresh dependency resolution on other platforms.
 
+The branch-push run also exposed an intermittent macOS/Python 3.10 subprocess
+cleanup failure: `killpg` returned `EPERM` as a short-lived process exited.
+Cleanup now handles this macOS case by waiting a bounded time for the leader to
+be reaped, then retrying the group signal. Missing groups are harmless; live
+process timeouts and persistent permission failures still surface. Deterministic
+regression cases cover the race and real permission denials on macOS and Linux.
+The final local strict coverage run passes 195 tests with 97.32% coverage;
+Ruff, compileall, and whitespace checks pass.
+
 `requirements-test.txt` now requires `pytest>=8,<9.2`. This preserves strict
 warning checks and the existing runtime AnyIO bound. Revisit both bounds together:
 AnyIO 4.15 fixes the plugin import, but adopting it also requires verifying the

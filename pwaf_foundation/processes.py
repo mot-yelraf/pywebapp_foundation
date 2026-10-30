@@ -9,6 +9,7 @@ import math
 import os
 import signal
 import subprocess
+import sys
 from collections import deque
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -128,7 +129,7 @@ async def _terminate(process: asyncio.subprocess.Process, grace: float) -> None:
         while await stream.read(4096):
             pass
 
-    def send(sig):
+    async def send(sig):
         try:
             if os.name == "posix":
                 os.killpg(process.pid, sig)
@@ -136,17 +137,30 @@ async def _terminate(process: asyncio.subprocess.Process, grace: float) -> None:
                 process.kill()
         except ProcessLookupError:
             pass
+        except PermissionError as exc:
+            if sys.platform != "darwin":
+                raise
+            # macOS can report EPERM for an exited, unreaped group leader.
+            # Reap it, then retry; a genuine permission failure must still surface.
+            try:
+                await asyncio.wait_for(process.wait(), max(grace, 0.1))
+            except asyncio.TimeoutError:
+                raise exc from None
+            try:
+                os.killpg(process.pid, sig)
+            except ProcessLookupError:
+                pass
 
     drains = [asyncio.create_task(discard(stream)) for stream in (process.stdout, process.stderr)]
     try:
         if grace and process.returncode is None:
-            send(signal.SIGTERM)
+            await send(signal.SIGTERM)
             try:
                 await asyncio.wait_for(process.wait(), grace)
             except asyncio.TimeoutError:
                 pass
         # Kill remaining POSIX descendants even if the leader has already exited.
-        send(signal.SIGKILL if os.name == "posix" else signal.SIGTERM)
+        await send(signal.SIGKILL if os.name == "posix" else signal.SIGTERM)
         await process.wait()
         await asyncio.gather(*drains)
     finally:

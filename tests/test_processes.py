@@ -6,11 +6,48 @@ No external tools or network destinations are required for these checks.
 import asyncio
 import os
 import sys
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from pwaf_foundation.errors import DomainError
 from pwaf_foundation.processes import run_process
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='POSIX process groups')
+@pytest.mark.parametrize('platform,live,still_denied', [
+    ('darwin', False, False), ('darwin', False, True), ('darwin', True, False),
+    ('linux', False, True),
+])
+def test_group_permission_race(monkeypatch, platform, live, still_denied):
+    from pwaf_foundation import processes
+
+    async def scenario():
+        async def wait():
+            if live:
+                await asyncio.Event().wait()
+            process.returncode = 0
+            return 0
+
+        process = Mock(pid=123, returncode=None, wait=wait)
+        process.stdout = Mock(read=AsyncMock(return_value=b''))
+        process.stderr = Mock(read=AsyncMock(return_value=b''))
+        signals = Mock(side_effect=[
+            PermissionError(),
+            PermissionError() if still_denied else ProcessLookupError(),
+            ProcessLookupError(),
+        ])
+        monkeypatch.setattr(processes.sys, 'platform', platform)
+        monkeypatch.setattr(processes.os, 'killpg', signals)
+        if live or still_denied:
+            with pytest.raises(PermissionError):
+                await processes._terminate(process, 0.001)
+        else:
+            await processes._terminate(process, 0.001)
+            assert process.returncode == 0
+        assert signals.call_count == (1 if live or platform != 'darwin'
+                                      else 2 if still_denied else 3)
+    asyncio.run(scenario())
 
 
 def test_streams_before_exit_and_preserves_unicode_without_capture():
