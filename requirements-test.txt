@@ -1,4 +1,6 @@
-pytest>=8,<10
+# AnyIO <4.15 imports CallSpec2; pytest 9.2 warns during plugin loading.
+# Revisit this cap together with the AnyIO constraint in requirements.txt.
+pytest>=8,<9.2
 pytest-cov>=6,<8
 httpx2>=2.11,<3
 ruff>=0.11,<1
