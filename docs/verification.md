@@ -1,8 +1,29 @@
 # Verification record
 
-Current version: `v0.26.277.1` (2026-10-04).
+Current version: `v0.26.303.1` (2026-10-30 UTC).
 The results below record local verification. Remote CI results are available in
 [GitHub Actions](https://github.com/mot-yelraf/pywebapp_foundation/actions).
+
+## Pytest / AnyIO compatibility (2026-10-30 UTC)
+
+PR #6 exposed a dependency compatibility failure before test collection:
+AnyIO 4.14.2 imports `CallSpec2`, which pytest 9.2 deprecates during plugin
+loading. With `-W error`, pytest exits before running tests. Reproduced locally
+on macOS ARM64 / Python 3.13.9 with pytest 9.2.0; the existing pytest 9.1.1
+environment passes all 191 tests with 97.30% coverage.
+
+After the change, installing `requirements-dev.txt` replaces pytest 9.2.0 with
+9.1.1. The strict coverage run again passes all 191 tests (97.30%); Ruff,
+compileall, and Git whitespace checks pass. These are local results; the PR's
+GitHub Actions matrix verifies fresh dependency resolution on other platforms.
+
+`requirements-test.txt` now requires `pytest>=8,<9.2`. This preserves strict
+warning checks and the existing runtime AnyIO bound. Revisit both bounds together:
+AnyIO 4.15 fixes the plugin import, but adopting it also requires verifying the
+Starlette TestClient compatibility described in `requirements.txt`. Do not remove
+the pytest cap until the permitted runtime dependency combinations pass `-W error`.
+See [AnyIO issue #1271](https://github.com/agronholm/anyio/issues/1271) and
+[pytest's deprecation notice](https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed).
 
 ## Foundation extension gaps (2026-10-04)
 
