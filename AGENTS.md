@@ -518,3 +518,5 @@ v0.<year>.<doy>.<x>
   selection remains the existing fixed-path contract.
 - The repository remains private. Preserve notices and distinguish local verification
   from remote CI/native targets. Do not change visibility or publish without authorization.
+- The foundation is licensed under GPLv3 (SPDX: `GPL-3.0-only`); preserve its license,
+  copyright attribution, and third-party notices when modifying or distributing it.

@@ -345,8 +345,12 @@ an explicit, one-time [legacy adoption](docs/installation.md#installation-identi
 after checking which application owns the destination. No stored preferences or
 schemas are reset by this change.
 
-The project uses the [BSD 2-Clause license](LICENSE); preserve its copyright and
-[third-party notices](THIRD_PARTY_NOTICES.md) when redistributing derived apps.
+The project is licensed under the [GNU General Public License, version 3](LICENSE)
+(GPLv3; SPDX: `GPL-3.0-only`).
+Copyright (c) 2026 T.W. Farley, dba Peace Hill Studios.
+When redistributing the project or derived apps, comply with GPLv3, including its
+applicable source-code and notice requirements, and preserve the
+[third-party notices](THIRD_PARTY_NOTICES.md).
 
 
 Desktop installs now provide per-user macOS Finder apps, Linux/Raspberry Pi menu
