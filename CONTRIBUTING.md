@@ -119,7 +119,9 @@ for behavior changes and identify compatibility or migration implications. For c
 changes, update `pwaf_foundation/__init__.py` using the repository version rule;
 documentation-only edits do not require a bump.
 
-Preserve [license](LICENSE), attribution, and [third-party notices](THIRD_PARTY_NOTICES.md).
+The project uses the [GNU General Public License, version 3](LICENSE)
+(GPLv3; SPDX: `GPL-3.0-only`). Preserve the license, attribution, and
+[third-party notices](THIRD_PARTY_NOTICES.md).
 When adding dependencies or assets, document their source and applicable notices.
 Do not claim planned features or untested platforms are verified. The project is
 pre-1.0; shared interfaces can evolve, but installed settings/data and documented

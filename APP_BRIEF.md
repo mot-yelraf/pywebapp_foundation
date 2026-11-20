@@ -30,7 +30,8 @@ Keep it unchanged across upgrades; never adopt another app’s installation.
 - Landing page and navigation: [pages and labels]
 - Header/footer/about content: [text and links]
 - Version policy: [inherited PWAF scheme or explicitly specified app scheme]
-- License/attribution decisions: [owner decision; preserve inherited notices]
+- License/attribution decisions: Foundation: GPLv3 (`GPL-3.0-only`); preserve inherited
+  copyright attribution and third-party notices. [Additional app-specific decisions: owner decision]
 
 ## Platforms and operation
 

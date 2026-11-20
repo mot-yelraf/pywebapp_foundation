@@ -1,7 +1,10 @@
 # Third-Party and Binary Notices
 
-pywebapp_foundation source code is distributed under the BSD 2-Clause License in
-[LICENSE](LICENSE). Dependencies, external tools, and contributed assets retain
+pywebapp_foundation source code is distributed under the GNU General Public License,
+version 3 (GPLv3; SPDX: `GPL-3.0-only`), in [LICENSE](LICENSE).
+Copyright (c) 2026 T.W. Farley, dba Peace Hill Studios.
+
+Dependencies, external tools, and contributed assets retain
 their own applicable licenses and notices. This document identifies where to
 maintain that information; it is not a complete inventory of every resolved
 package or platform runtime.

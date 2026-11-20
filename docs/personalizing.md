@@ -128,12 +128,15 @@ branding without changing activation locks or data-preservation behavior.
 
 Set public description, author/support information, attribution, and release notes
 for the derived app. Preserve inherited notices; identify the owner's licensing
-choice instead of inventing one. Review the inherited [BSD 2-Clause license](../LICENSE)
-and [third-party notices](../THIRD_PARTY_NOTICES.md); preserve their notices in the
-derived project and its distributions. Record any additional app-specific licensing
-decisions separately. Audit the third-party notice framework against actual
-dependencies/assets when personalizing; it is not a complete resolved inventory
-of the new app.
+choice instead of inventing one. The foundation uses the
+[GNU General Public License, version 3](../LICENSE) (GPLv3; SPDX: `GPL-3.0-only`).
+Comply with GPLv3 when distributing derived apps, including its applicable
+source-code and notice requirements. Preserve inherited copyright attribution and
+[third-party notices](../THIRD_PARTY_NOTICES.md) in the derived project and its
+distributions. Record any additional app-specific licensing decisions separately;
+they must respect the inherited license obligations. Audit the third-party notice
+framework against actual dependencies/assets when personalizing; it is not a
+complete resolved inventory of the new app.
 
 Run tests and lint, check keyboard/mobile behavior, and verify source and installed
 startup separately. Test a clean install and an upgrade containing saved settings
